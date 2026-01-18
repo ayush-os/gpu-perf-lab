@@ -64,6 +64,8 @@ int main()
     auto time = stats.mean / 1e6;
     auto gflops = (total_ops / time) / 1e9;
 
+    printf("GFLOPS: %d, TIME: %d, TOTAL_OPS: %d\n", gflops, time, total_ops);
+
     cudaFree(d_output);
     return 0;
 }
