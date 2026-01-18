@@ -5,19 +5,20 @@
 // Kernel: Pure register operations
 __global__ void register_bandwidth_test(float *out, int iterations)
 {
-    float a = 0.0f;
-    float b = 0.0f;
-    float c = 0.0f;
-    float d = 0.0f;
+    float a0 = 0.0f, a1 = 0.0f, a2 = 0.0f, a3 = 0.0f, a4 = 0.0f, a5 = 0.0f, a6 = 0.0f, a7 = 0.0f;
 
     for (int i = 0; i < iterations; i++)
     {
-        a += 1.0f;
-        b += 2.0f;
-        c += 3.0f;
-        d += 4.0f;
+        a0 += 1.0f;
+        a1 += 2.0f;
+        a2 += 3.0f;
+        a3 += 4.0f;
+        a4 += 5.0f;
+        a5 += 6.0f;
+        a6 += 7.0f;
+        a7 += 8.0f;
     }
-    out[blockIdx.x * blockDim.x + threadIdx.x] = a + b + c + d;
+    out[blockIdx.x * blockDim.x + threadIdx.x] = a0 + a1 + a2 + a3 + a4 + a5 + a6 + a7;
 }
 
 int main()
@@ -28,7 +29,7 @@ int main()
     const int BLOCK_SIZE = 256;
     const int NUM_BLOCKS = 432;
     const int KERNEL_ITERS = 10000;
-    const int OPS_PER_ITER = 4;
+    const int OPS_PER_ITER = 8;
 
     // Allocate output (just to prevent optimization)
     float *d_output;
