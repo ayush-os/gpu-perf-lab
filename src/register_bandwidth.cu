@@ -8,10 +8,10 @@ __global__ void register_bandwidth_test(float *output, int iterations)
     float a = 0.1f, b = 0.2f, c = 0.3f, d = 0.4f;
     for (int i = 0; i < (iterations / 4); i++)
     {
-        a = a * 1.01 + 0.5;
-        b = b * 1.01 + 0.5;
-        c = c * 1.01 + 0.5;
-        d = d * 1.01 + 0.5;
+        a = a * 1.01f + 0.5f;
+        b = b * 1.01f + 0.5f;
+        c = c * 1.01f + 0.5f;
+        d = d * 1.01f + 0.5f;
     }
 
     int idx = blockIdx.x * blockDim.x + threadIdx.x;
