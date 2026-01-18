@@ -21,7 +21,7 @@ __global__ void register_bandwidth_test(float *out, int iterations, float mult)
         asm volatile("fma.rn.f32 %0, %0, %1, %2;" : "+f"(a6) : "f"(mult), "f"(1.0f));
         asm volatile("fma.rn.f32 %0, %0, %1, %2;" : "+f"(a7) : "f"(mult), "f"(1.0f));
     }
-    out[blockIdx.x * blockDim.x + threadIdx.x] = a0 + a1 + a2 + a3 + a4 + a5 + a6 + a7;
+    out[blockIdx.x * blockDim.x + threadIdx.x] = (a0 + a1 + a2 + a3) + (a4 + a5 + a6 + a7);
 }
 
 int main()
