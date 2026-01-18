@@ -5,6 +5,7 @@
 #include <vector>
 #include <algorithm>
 #include <cmath>
+#include <numeric>
 
 class CUDATimer
 {
@@ -53,7 +54,9 @@ struct BenchmarkStats
         BenchmarkStats ret;
 
         if (times.empty())
+        {
             return ret;
+        }
 
         // Mean
         float sum = std::accumulate(times.begin(), times.end(), 0.0f);
@@ -97,6 +100,8 @@ struct BenchmarkStats
         ret.min = min_val;
         ret.max = max_val;
         ret.median = median;
+
+        return ret;
     }
 
     void print()
