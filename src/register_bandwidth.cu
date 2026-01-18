@@ -6,9 +6,9 @@
 __global__ void register_bandwidth_test(float *out, int iterations, float mult)
 {
     float a0 = 1.0f, a1 = 2.0f, a2 = 3.0f, a3 = 4.0f, a4 = 5.0f, a5 = 6.0f;
-    float a6 = 7.0f, a7 = 8.0f;
+    float a6 = 7.0f, a7 = 8.0f, a8 = 9.0f, a9 = 10.0f, a10 = 11.0f, a11 = 12.0f;
 
-#pragma unroll 32
+    #pragma unroll 32
     for (int i = 0; i < iterations; i++)
     {
         // Inline PTX: fma.rn.f32 dest, src1, src2, src3 (dest = src1 * src2 + src3)
@@ -20,8 +20,12 @@ __global__ void register_bandwidth_test(float *out, int iterations, float mult)
         asm volatile("fma.rn.f32 %0, %0, %1, %2;" : "+f"(a5) : "f"(mult), "f"(1.0f));
         asm volatile("fma.rn.f32 %0, %0, %1, %2;" : "+f"(a6) : "f"(mult), "f"(1.0f));
         asm volatile("fma.rn.f32 %0, %0, %1, %2;" : "+f"(a7) : "f"(mult), "f"(1.0f));
+        asm volatile("fma.rn.f32 %0, %0, %1, %2;" : "+f"(a8) : "f"(mult), "f"(1.0f));
+        asm volatile("fma.rn.f32 %0, %0, %1, %2;" : "+f"(a9) : "f"(mult), "f"(1.0f));
+        asm volatile("fma.rn.f32 %0, %0, %1, %2;" : "+f"(a10) : "f"(mult), "f"(1.0f));
+        asm volatile("fma.rn.f32 %0, %0, %1, %2;" : "+f"(a11) : "f"(mult), "f"(1.0f));
     }
-    out[blockIdx.x * blockDim.x + threadIdx.x] = (a0 + a1 + a2 + a3) + (a4 + a5 + a6 + a7);
+    out[blockIdx.x * blockDim.x + threadIdx.x] = (a0 + a1 + a2 + a3 + a4 + a5) + (a6 + a7 + a8 + a9 + a10 + a11);
 }
 
 int main()
@@ -32,7 +36,7 @@ int main()
     const int BLOCK_SIZE = 256;
     const int NUM_BLOCKS = 432;
     const int KERNEL_ITERS = 10000;
-    const int OPS_PER_ITER = 16;
+    const int OPS_PER_ITER = 24;
 
     // Allocate output (just to prevent optimization)
     float *d_output;
