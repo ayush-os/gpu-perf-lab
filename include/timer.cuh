@@ -51,7 +51,7 @@ struct BenchmarkStats
 
     static BenchmarkStats compute(std::vector<float> &times)
     {
-        BenchmarkStats ret;
+        BenchmarkStats ret{};
 
         if (times.empty())
         {
