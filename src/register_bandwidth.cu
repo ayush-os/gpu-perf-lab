@@ -8,21 +8,22 @@ __global__ void register_bandwidth_test(float *out, int iterations, int multipli
     float a0 = 1.0f, a1 = 2.0f, a2 = 3.0f, a3 = 4.0f, a4 = 5.0f, a5 = 6.0f;
     float a6 = 7.0f, a7 = 8.0f, a8 = 9.0f, a9 = 10.0f, a10 = 11.0f, a11 = 12.0f;
 
-#pragma unroll 32
+    #pragma unroll 32
     for (int i = 0; i < iterations; i++)
     {
-        a0 = a0 * multiplier + 1.0f;
-        a1 = a1 * multiplier + 1.0f;
-        a2 = a2 * multiplier + 1.0f;
-        a3 = a3 * multiplier + 1.0f;
-        a4 = a4 * multiplier + 1.0f;
-        a5 = a5 * multiplier + 1.0f;
-        a6 = a6 * multiplier + 1.0f;
-        a7 = a7 * multiplier + 1.0f;
-        a8 = a8 * multiplier + 1.0f;
-        a9 = a9 * multiplier + 1.0f;
-        a10 = a10 * multiplier + 1.0f;
-        a11 = a11 * multiplier + 1.0f;
+        // Inline PTX: fma.rn.f32 dest, src1, src2, src3 (dest = src1 * src2 + src3)
+        asm volatile("fma.rn.f32 %0, %0, %1, %2;" : "+f"(a0) : "f"(mult), "f"(1.0f));
+        asm volatile("fma.rn.f32 %0, %0, %1, %2;" : "+f"(a1) : "f"(mult), "f"(1.0f));
+        asm volatile("fma.rn.f32 %0, %0, %1, %2;" : "+f"(a2) : "f"(mult), "f"(1.0f));
+        asm volatile("fma.rn.f32 %0, %0, %1, %2;" : "+f"(a3) : "f"(mult), "f"(1.0f));
+        asm volatile("fma.rn.f32 %0, %0, %1, %2;" : "+f"(a4) : "f"(mult), "f"(1.0f));
+        asm volatile("fma.rn.f32 %0, %0, %1, %2;" : "+f"(a5) : "f"(mult), "f"(1.0f));
+        asm volatile("fma.rn.f32 %0, %0, %1, %2;" : "+f"(a6) : "f"(mult), "f"(1.0f));
+        asm volatile("fma.rn.f32 %0, %0, %1, %2;" : "+f"(a7) : "f"(mult), "f"(1.0f));
+        asm volatile("fma.rn.f32 %0, %0, %1, %2;" : "+f"(a8) : "f"(mult), "f"(1.0f));
+        asm volatile("fma.rn.f32 %0, %0, %1, %2;" : "+f"(a9) : "f"(mult), "f"(1.0f));
+        asm volatile("fma.rn.f32 %0, %0, %1, %2;" : "+f"(a10) : "f"(mult), "f"(1.0f));
+        asm volatile("fma.rn.f32 %0, %0, %1, %2;" : "+f"(a11) : "f"(mult), "f"(1.0f));
     }
     out[blockIdx.x * blockDim.x + threadIdx.x] = (a0 + a1 + a2 + a3 + a4 + a5) + (a6 + a7 + a8 + a9 + a10 + a11);
 }
