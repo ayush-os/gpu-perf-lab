@@ -5,14 +5,17 @@
 // Kernel: Pure register operations
 __global__ void register_bandwidth_test(float *output, int iterations)
 {
-    float acc = 0.1f;
-    for (int i = 0; i < iterations; i++)
+    float a = 0.1f, b = 0.2f, c = 0.3f, d = 0.4f;
+    for (int i = 0; i < (iterations / 4); i++)
     {
-        acc += 1.01 * acc;
+        a = a * 1.01 + 0.5;
+        b = b * 1.01 + 0.5;
+        c = c * 1.01 + 0.5;
+        d = d * 1.01 + 0.5;
     }
 
     int idx = blockIdx.x * blockDim.x + threadIdx.x;
-    output[idx] = acc;
+    output[idx] = a + b + c + d;
 }
 
 int main()
