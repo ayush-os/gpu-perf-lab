@@ -28,7 +28,7 @@ int main()
     const int BLOCK_SIZE = 256;
     const int NUM_BLOCKS = 432;
     const int KERNEL_ITERS = 10000;
-    const int OPS_PER_ITER = 1;
+    const int OPS_PER_ITER = 4;
 
     // Allocate output (just to prevent optimization)
     float *d_output;
