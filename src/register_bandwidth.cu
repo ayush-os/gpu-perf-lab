@@ -7,6 +7,7 @@ __global__ void register_bandwidth_test(float *out, int iterations, int multipli
 {
     float a0 = 0.0f, a1 = 0.0f, a2 = 0.0f, a3 = 0.0f, a4 = 0.0f, a5 = 0.0f, a6 = 0.0f, a7 = 0.0f;
 
+#pragma unroll 32
     for (int i = 0; i < iterations; i++)
     {
         a0 = a0 * multiplier + 1.0f;
