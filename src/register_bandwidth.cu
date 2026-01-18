@@ -5,7 +5,8 @@
 // Kernel: Pure register operations
 __global__ void register_bandwidth_test(float *out, int iterations, int multiplier)
 {
-    float a0 = 0.0f, a1 = 0.0f, a2 = 0.0f, a3 = 0.0f, a4 = 0.0f, a5 = 0.0f, a6 = 0.0f, a7 = 0.0f;
+    float a0 = 1.0f, a1 = 2.0f, a2 = 3.0f, a3 = 4.0f, a4 = 5.0f, a5 = 6.0f;
+    float a6 = 7.0f, a7 = 8.0f, a8 = 9.0f, a9 = 10.0f, a10 = 11.0f, a11 = 12.0f;
 
 #pragma unroll 32
     for (int i = 0; i < iterations; i++)
@@ -18,8 +19,12 @@ __global__ void register_bandwidth_test(float *out, int iterations, int multipli
         a5 = a5 * multiplier + 1.0f;
         a6 = a6 * multiplier + 1.0f;
         a7 = a7 * multiplier + 1.0f;
+        a8 = a8 * multiplier + 1.0f;
+        a9 = a9 * multiplier + 1.0f;
+        a10 = a10 * multiplier + 1.0f;
+        a11 = a11 * multiplier + 1.0f;
     }
-    out[blockIdx.x * blockDim.x + threadIdx.x] = a0 + a1 + a2 + a3 + a4 + a5 + a6 + a7;
+    out[blockIdx.x * blockDim.x + threadIdx.x] = (a0 + a1 + a2 + a3 + a4 + a5) + (a6 + a7 + a8 + a9 + a10 + a11);
 }
 
 int main()
