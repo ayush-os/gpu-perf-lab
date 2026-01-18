@@ -34,7 +34,7 @@ int main()
     const int WARMUP_ITERS = 10;
     const int TIMING_ITERS = 100;
     const int BLOCK_SIZE = 256;
-    const int NUM_BLOCKS = 432;
+    const int NUM_BLOCKS = 864;
     const int KERNEL_ITERS = 10000;
     const int OPS_PER_ITER = 24;
 
