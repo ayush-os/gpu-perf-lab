@@ -11,7 +11,8 @@ __global__ void register_bandwidth_test(float *output, int iterations)
         acc += 1.01 * acc;
     }
 
-    output[threadIdx.x] = acc;
+    int idx = blockIdx.x * blockDim.x + threadIdx.x;
+    output[idx] = acc;
 }
 
 int main()
@@ -20,13 +21,13 @@ int main()
     const int WARMUP_ITERS = 10;
     const int TIMING_ITERS = 100;
     const int BLOCK_SIZE = 256;
-    const int NUM_BLOCKS = 1;
+    const int NUM_BLOCKS = 432;
     const int KERNEL_ITERS = 10000;
     const int OPS_PER_ITER = 2;
 
     // Allocate output (just to prevent optimization)
     float *d_output;
-    cudaMalloc(&d_output, BLOCK_SIZE * sizeof(float));
+    cudaMalloc(&d_output, NUM_BLOCKS * BLOCK_SIZE * sizeof(float));
 
     // Warmup
     for (int i = 0; i < WARMUP_ITERS; i++)
@@ -60,7 +61,7 @@ int main()
     // Time (convert us to s) = stats.mean / 1e6
     // 1e9 will convert flops to gflops
     // GFLOPS = (total_ops / time) / 1e9
-    auto total_ops = BLOCK_SIZE * KERNEL_ITERS * OPS_PER_ITER;
+    auto total_ops = (long long)NUM_BLOCKS * BLOCK_SIZE * KERNEL_ITERS * OPS_PER_ITER;
     auto time = stats.mean / 1e6;
     auto gflops = (total_ops / time) / 1e9;
 
