@@ -3,29 +3,22 @@
 #include "../include/timer.cuh"
 
 // Kernel: Pure register operations
-__global__ void register_bandwidth_test(float *output, int iterations)
+__global__ void register_bandwidth_test(float *out, int iterations)
 {
-    float a = 0.1f, b = 0.2f, c = 0.3f, d = 0.4f;
-    for (int i = 0; i < (iterations / 4); i++)
-    {
-        a = a * 1.01f + 0.5f;
-        b = b * 1.01f + 0.5f;
-        c = c * 1.01f + 0.5f;
-        d = d * 1.01f + 0.5f;
-    }
+    float a = 0.0f;
+    float b = 0.0f;
+    float c = 0.0f;
+    float d = 0.0f;
 
-    int idx = blockIdx.x * blockDim.x + threadIdx.x;
-    output[idx] = a + b + c + d;
+    for (int i = 0; i < iterations; i++)
+    {
+        a += 1.0f;
+        b += 2.0f;
+        c += 3.0f;
+        d += 4.0f;
+    }
+    out[blockIdx.x * blockDim.x + threadIdx.x] = a + b + c + d;
 }
-// __global__ void register_bandwidth_test(float *out, int iterations)
-// {
-//     float acc = 0.0f;
-//     for (int i = 0; i < iterations; i++)
-//     {
-//         acc += 1.0f; // Stays in registers, never touches memory
-//     }
-//     out[blockIdx.x * blockDim.x + threadIdx.x] = acc;
-// }
 
 int main()
 {
