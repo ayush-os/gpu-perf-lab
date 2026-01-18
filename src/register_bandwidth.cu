@@ -3,7 +3,7 @@
 #include "../include/timer.cuh"
 
 // Kernel: Pure register operations
-__global__ void register_bandwidth_test(float *out, int iterations, int multiplier)
+__global__ void register_bandwidth_test(float *out, int iterations, float mult)
 {
     float a0 = 1.0f, a1 = 2.0f, a2 = 3.0f, a3 = 4.0f, a4 = 5.0f, a5 = 6.0f;
     float a6 = 7.0f, a7 = 8.0f, a8 = 9.0f, a9 = 10.0f, a10 = 11.0f, a11 = 12.0f;
@@ -45,7 +45,7 @@ int main()
     // Warmup
     for (int i = 0; i < WARMUP_ITERS; i++)
     {
-        register_bandwidth_test<<<NUM_BLOCKS, BLOCK_SIZE>>>(d_output, KERNEL_ITERS, 2);
+        register_bandwidth_test<<<NUM_BLOCKS, BLOCK_SIZE>>>(d_output, KERNEL_ITERS, 2.f);
     }
     cudaDeviceSynchronize();
 
@@ -56,7 +56,7 @@ int main()
     for (int i = 0; i < TIMING_ITERS; i++)
     {
         timer.start_timer();
-        register_bandwidth_test<<<NUM_BLOCKS, BLOCK_SIZE>>>(d_output, KERNEL_ITERS, 2);
+        register_bandwidth_test<<<NUM_BLOCKS, BLOCK_SIZE>>>(d_output, KERNEL_ITERS, 2.f);
         float ms = timer.stop_timer();
         times.push_back(ms * 1000); // ms to us
     }
