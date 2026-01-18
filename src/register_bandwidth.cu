@@ -8,7 +8,7 @@ __global__ void register_bandwidth_test(float *out, int iterations, float mult)
     float a0 = 1.0f, a1 = 2.0f, a2 = 3.0f, a3 = 4.0f, a4 = 5.0f, a5 = 6.0f;
     float a6 = 7.0f, a7 = 8.0f, a8 = 9.0f, a9 = 10.0f, a10 = 11.0f, a11 = 12.0f;
 
-    #pragma unroll 32
+#pragma unroll 32
     for (int i = 0; i < iterations; i++)
     {
         // Inline PTX: fma.rn.f32 dest, src1, src2, src3 (dest = src1 * src2 + src3)
@@ -37,15 +37,15 @@ int main()
     const int NUM_BLOCKS = 864;
     const int KERNEL_ITERS = 10000;
     const int OPS_PER_ITER = 24;
+    const float MULT = 2.f;
 
-    // Allocate output (just to prevent optimization)
     float *d_output;
     cudaMalloc(&d_output, NUM_BLOCKS * BLOCK_SIZE * sizeof(float));
 
     // Warmup
     for (int i = 0; i < WARMUP_ITERS; i++)
     {
-        register_bandwidth_test<<<NUM_BLOCKS, BLOCK_SIZE>>>(d_output, KERNEL_ITERS, 2.f);
+        register_bandwidth_test<<<NUM_BLOCKS, BLOCK_SIZE>>>(d_output, KERNEL_ITERS, float);
     }
     cudaDeviceSynchronize();
 
@@ -56,7 +56,7 @@ int main()
     for (int i = 0; i < TIMING_ITERS; i++)
     {
         timer.start_timer();
-        register_bandwidth_test<<<NUM_BLOCKS, BLOCK_SIZE>>>(d_output, KERNEL_ITERS, 2.f);
+        register_bandwidth_test<<<NUM_BLOCKS, BLOCK_SIZE>>>(d_output, KERNEL_ITERS, float);
         float ms = timer.stop_timer();
         times.push_back(ms * 1000); // ms to us
     }
@@ -68,12 +68,6 @@ int main()
     printf("Block size: %d, Iterations: %d\n", BLOCK_SIZE, KERNEL_ITERS);
     stats.print();
 
-    // TODO: Calculate FLOPS
-    // OPS_PER_ITER = 2
-    // Total operations = BLOCK_SIZE * KERNEL_ITERS * OPS_PER_ITER = 256 * 10000 * 2 = 5,120,000
-    // Time (convert us to s) = stats.mean / 1e6
-    // 1e9 will convert flops to gflops
-    // GFLOPS = (total_ops / time) / 1e9
     auto total_ops = (long long)NUM_BLOCKS * BLOCK_SIZE * KERNEL_ITERS * OPS_PER_ITER;
     auto time = stats.mean / 1e6;
     auto gflops = (total_ops / time) / 1e9;
