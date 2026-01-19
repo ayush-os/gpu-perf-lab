@@ -71,7 +71,7 @@ void benchmark_latency(size_t size_bytes, int stride, const char *label)
     stats.print();
 
     free(h_chain);
-    cudaFree(*d_chain);
+    cudaFree(d_chain);
     cudaFree(d_output);
     return;
 }
