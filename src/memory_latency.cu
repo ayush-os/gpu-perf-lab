@@ -1,3 +1,7 @@
+#include <vector>
+#include <numeric>
+#include <algorithm>
+#include <random>
 #include <stdio.h>
 #include <stdlib.h>
 #include "../include/timer.cuh"
@@ -8,13 +12,26 @@ void prepare_pointer_chase(int **h_chain, int **d_chain, size_t size_bytes, int 
     size_t num_elems = size_bytes / sizeof(int);
     *h_chain = (int *)malloc(size_bytes);
 
-    for (int i = 0; i < num_elems; i++)
+    // 1. Create a sequence of indices [0, 1, 2, ..., n-1]
+    std::vector<int> indices(num_elems);
+    std::iota(indices.begin(), indices.end(), 0);
+
+    // 2. Shuffle the indices to create a random visitation order
+    std::random_device rd;
+    std::mt19937 g(rd());
+    std::shuffle(indices.begin(), indices.end(), g);
+
+    // 3. Link the indices in the shuffled order to form one giant circle
+    // If shuffled indices are [3, 0, 2, 1], then:
+    // h_chain[3] = 0, h_chain[0] = 2, h_chain[2] = 1, h_chain[1] = 3
+    for (size_t i = 0; i < num_elems - 1; i++)
     {
-        (*h_chain)[i] = (i + stride) % num_elems;
+        (*h_chain)[indices[i]] = indices[i + 1];
     }
+    // Close the loop
+    (*h_chain)[indices[num_elems - 1]] = indices[0];
 
     cudaMalloc((void **)d_chain, size_bytes);
-
     cudaMemcpy(*d_chain, *h_chain, size_bytes, cudaMemcpyHostToDevice);
 }
 
