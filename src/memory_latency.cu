@@ -95,11 +95,11 @@ int main()
     benchmark_latency(4 * 1024 * 1024, 256, "L2 Cache");
 
     // HBM: 40/80 GB on A100
-    // 100 MB to hit HBM
-    benchmark_latency(100 * 1024 * 1024, 1, "HBM");
-    benchmark_latency(100 * 1024 * 1024, 16, "HBM");
-    benchmark_latency(100 * 1024 * 1024, 64, "HBM");
-    benchmark_latency(100 * 1024 * 1024, 256, "HBM");
+    // 1GB to hit HBM
+    benchmark_latency(1000 * 1024 * 1024, 1, "HBM");
+    benchmark_latency(1000 * 1024 * 1024, 16, "HBM");
+    benchmark_latency(1000 * 1024 * 1024, 64, "HBM");
+    benchmark_latency(1000 * 1024 * 1024, 256, "HBM");
 
     return 0;
 }
