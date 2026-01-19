@@ -88,7 +88,7 @@ void run_benchmark(const char *mode, size_t size_bytes, int inner_iters = 1)
         if (strcmp(mode, "L1") == 0)
             l1_benchmark_kernel<<<blocks, threads>>>(d_input, inner_iters);
         else if (strcmp(mode, "L2") == 0)
-            l2_benchmark_kernel<<<blocks, threads>>>(d_input, d_output, N);
+            l2_benchmark_resident_kernel<<<blocks, threads>>>(d_input, d_output, N);
         else
             hbm_benchmark_kernel<<<blocks, threads>>>(d_input, d_output, N);
     }
