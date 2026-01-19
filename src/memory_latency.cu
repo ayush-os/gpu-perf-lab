@@ -6,7 +6,7 @@
 void prepare_pointer_chase(int **h_chain, int **d_chain, size_t size_bytes, int stride)
 {
     size_t num_elems = size_bytes / sizeof(int);
-    *h_chain = malloc(size_bytes);
+    *h_chain = (int *)malloc(size_bytes);
 
     for (int i = 0; i < num_elems; i++)
     {
@@ -38,8 +38,8 @@ void benchmark_latency(size_t size_bytes, int stride, const char *label)
     const int NUM_BLOCKS = 1;
     const int CHASE_COUNT = 10000;
 
-    float *d_output;
-    cudaMalloc(&d_output, NUM_BLOCKS * BLOCK_SIZE * sizeof(float));
+    int *d_output;
+    cudaMalloc(&d_output, NUM_BLOCKS * BLOCK_SIZE * sizeof(int));
 
     int *h_chain;
     int *d_chain;
@@ -71,7 +71,7 @@ void benchmark_latency(size_t size_bytes, int stride, const char *label)
     stats.print();
 
     free(h_chain);
-    cuda_free(*d_chain);
+    cudaFree(*d_chain);
     cudaFree(d_output);
     return;
 }
