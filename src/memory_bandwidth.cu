@@ -103,7 +103,7 @@ int main()
 
     benchmark_bandwidth(64 * 1024, "L1 Cache (64 KB)");
     benchmark_bandwidth(4 * 1024 * 1024, "L2 Cache (4 MB)");
-    benchmark_bandwidth(1024ULL * 1024ULL * 1024ULL, "HBM (1 GB)");
+    benchmark_bandwidth(8 * 1024ULL * 1024ULL * 1024ULL, "HBM (8 GB)");
 
     printf("\nA100 Theoretical Peak HBM Bandwidth: ~1555 GB/s (40GB) or ~2039 GB/s (80GB)\n");
 
