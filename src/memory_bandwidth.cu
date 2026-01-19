@@ -6,7 +6,7 @@ __global__ void streaming_read(const float4 *input, float4 *output, size_t N_flo
 {
     int idx = blockIdx.x * blockDim.x + threadIdx.x;
 
-#pragma unroll 16
+#pragma unroll 32
     for (int i = idx; i < N_float4; i += gridDim.x * blockDim.x)
     {
         float4 val = input[i];
