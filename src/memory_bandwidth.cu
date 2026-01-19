@@ -28,7 +28,7 @@ __global__ void streaming_read(const float4 *__restrict__ input,
     }
 }
 
-void benchmark_bandwidth(size_t size_bytes)
+void benchmark_bandwidth(size_t size_bytes, const char *label)
 {
     const int BLOCK_SIZE = 256;
     const int NUM_BLOCKS = 16384;
