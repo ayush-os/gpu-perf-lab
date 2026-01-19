@@ -56,7 +56,7 @@ void benchmark_bandwidth(size_t size_bytes, const char *label)
 
     auto stats = BenchmarkStats::compute(times);
 
-    int bytes_transferred = size_bytes * 2;
+    size_t bytes_transferred = static_cast<size_t>(size_bytes) * 2;
     double bandwidth_gbps = (static_cast<double>(bytes_transferred) / stats.median) / 1e9;
     double utilization = (bandwidth_gbps / MAX_HBM_BANDWIDTH) * 100;
 
