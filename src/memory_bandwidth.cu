@@ -21,7 +21,7 @@ __global__ void streaming_read(const float4 *input, float4 *output, size_t N_flo
 void benchmark_bandwidth(size_t size_bytes, const char *label)
 {
     const int BLOCK_SIZE = 256;
-    const int NUM_BLOCKS = 216;
+    const int NUM_BLOCKS = 2160;
     const double MAX_HBM_BANDWIDTH = 2039.0;
 
     size_t N_float4 = size_bytes / sizeof(float4);
