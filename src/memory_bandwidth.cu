@@ -75,8 +75,6 @@ int main()
     benchmark_bandwidth(1024 * 1024 * 1024, "HBM (1 GB)");
 
     printf("\nA100 Theoretical Peak HBM Bandwidth: ~1555 GB/s (40GB) or ~2039 GB/s (80GB)\n");
-    // TODO
-    printf("Your achieved percentage: [calculate this]\n");
 
     return 0;
 }
