@@ -2,7 +2,7 @@
 #include "../include/timer.cuh"
 
 // Streaming read bandwidth
-__global__ void streaming_read(const float4 *input, float4 *output, size_t N_float4)
+__global__ void streaming_read(const float4 *__restrict__ input, float4 *__restrict__ output, size_t N_float4)
 {
     int idx = blockIdx.x * blockDim.x + threadIdx.x;
     int stride = gridDim.x * blockDim.x;
@@ -13,40 +13,48 @@ __global__ void streaming_read(const float4 *input, float4 *output, size_t N_flo
         if (i < N_float4)
         {
             float4 v0 = input[i];
+            asm volatile("" : "+f"(v0.x), "+f"(v0.y), "+f"(v0.z), "+f"(v0.w));
             v0.w = v0.w * 3.0f + 5.0f;
             v0.x = v0.x * 3.0f + 5.0f;
             v0.y = v0.y * 3.0f + 5.0f;
             v0.z = v0.z * 3.0f + 5.0f;
+            asm volatile("" : : "f"(v0.x), "f"(v0.y), "f"(v0.z), "f"(v0.w) : "memory");
             output[i] = v0;
         }
 
         if (i + 1 < N_float4)
         {
             float4 v1 = input[i + 1];
+            asm volatile("" : "+f"(v1.x), "+f"(v1.y), "+f"(v1.z), "+f"(v1.w));
             v1.w = v1.w * 3.0f + 5.0f;
             v1.x = v1.x * 3.0f + 5.0f;
             v1.y = v1.y * 3.0f + 5.0f;
             v1.z = v1.z * 3.0f + 5.0f;
+            asm volatile("" : : "f"(v1.x), "f"(v1.y), "f"(v1.z), "f"(v1.w) : "memory");
             output[i + 1] = v1;
         }
 
         if (i + 2 < N_float4)
         {
             float4 v2 = input[i + 2];
+            asm volatile("" : "+f"(v2.x), "+f"(v2.y), "+f"(v2.z), "+f"(v2.w));
             v2.w = v2.w * 3.0f + 5.0f;
             v2.x = v2.x * 3.0f + 5.0f;
             v2.y = v2.y * 3.0f + 5.0f;
             v2.z = v2.z * 3.0f + 5.0f;
+            asm volatile("" : : "f"(v2.x), "f"(v2.y), "f"(v2.z), "f"(v2.w) : "memory");
             output[i + 2] = v2;
         }
 
         if (i + 3 < N_float4)
         {
             float4 v3 = input[i + 3];
+            asm volatile("" : "+f"(v3.x), "+f"(v3.y), "+f"(v3.z), "+f"(v3.w));
             v3.w = v3.w * 3.0f + 5.0f;
             v3.x = v3.x * 3.0f + 5.0f;
             v3.y = v3.y * 3.0f + 5.0f;
             v3.z = v3.z * 3.0f + 5.0f;
+            asm volatile("" : : "f"(v3.x), "f"(v3.y), "f"(v3.z), "f"(v3.w) : "memory");
             output[i + 3] = v3;
         }
     }
