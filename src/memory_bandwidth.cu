@@ -10,35 +10,45 @@ __global__ void streaming_read(const float4 *input, float4 *output, size_t N_flo
 #pragma unroll 32
     for (int i = idx; i < N_float4; i += stride * 4)
     {
-        float4 v0 = input[i];
-        float4 v1 = input[i + 1];
-        float4 v2 = input[i + 2];
-        float4 v3 = input[i + 3];
+        if (i < N_float4)
+        {
+            float4 v0 = input[i];
+            v0.w = v0.w * 3.0f + 5.0f;
+            v0.x = v0.x * 3.0f + 5.0f;
+            v0.y = v0.y * 3.0f + 5.0f;
+            v0.z = v0.z * 3.0f + 5.0f;
+            output[i] = v0;
+        }
 
-        v0.w = v0.w * 3.0f + 5.0f;
-        v0.x = v0.x * 3.0f + 5.0f;
-        v0.y = v0.y * 3.0f + 5.0f;
-        v0.z = v0.z * 3.0f + 5.0f;
+        if (i + 1 < N_float4)
+        {
+            float4 v1 = input[i + 1];
+            v1.w = v1.w * 3.0f + 5.0f;
+            v1.x = v1.x * 3.0f + 5.0f;
+            v1.y = v1.y * 3.0f + 5.0f;
+            v1.z = v1.z * 3.0f + 5.0f;
+            output[i + 1] = v1;
+        }
 
-        v1.w = v1.w * 3.0f + 5.0f;
-        v1.x = v1.x * 3.0f + 5.0f;
-        v1.y = v1.y * 3.0f + 5.0f;
-        v1.z = v1.z * 3.0f + 5.0f;
+        if (i + 2 < N_float4)
+        {
+            float4 v2 = input[i + 2];
+            v2.w = v2.w * 3.0f + 5.0f;
+            v2.x = v2.x * 3.0f + 5.0f;
+            v2.y = v2.y * 3.0f + 5.0f;
+            v2.z = v2.z * 3.0f + 5.0f;
+            output[i + 2] = v2;
+        }
 
-        v2.w = v2.w * 3.0f + 5.0f;
-        v2.x = v2.x * 3.0f + 5.0f;
-        v2.y = v2.y * 3.0f + 5.0f;
-        v2.z = v2.z * 3.0f + 5.0f;
-
-        v3.w = v3.w * 3.0f + 5.0f;
-        v3.x = v3.x * 3.0f + 5.0f;
-        v3.y = v3.y * 3.0f + 5.0f;
-        v3.z = v3.z * 3.0f + 5.0f;
-
-        output[i] = v0;
-        output[i + 1] = v1;
-        output[i + 2] = v2;
-        output[i + 3] = v3;
+        if (i + 3 < N_float4)
+        {
+            float4 v3 = input[i + 3];
+            v3.w = v3.w * 3.0f + 5.0f;
+            v3.x = v3.x * 3.0f + 5.0f;
+            v3.y = v3.y * 3.0f + 5.0f;
+            v3.z = v3.z * 3.0f + 5.0f;
+            output[i + 3] = v3;
+        }
     }
 }
 
