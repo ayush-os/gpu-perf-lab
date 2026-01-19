@@ -57,8 +57,8 @@ void benchmark_bandwidth(size_t size_bytes, const char *label)
     auto stats = BenchmarkStats::compute(times);
 
     int bytes_transferred = size_bytes * 2;
-    int bandwidth_gbps = (bytes_transferred / stats.median) / 1e9;
-    double utilization = (static_cast<double>(bandwidth_gbps) / MAX_HBM_BANDWIDTH) * 100;
+    double bandwidth_gbps = (static_cast<double>(bytes_transferred) / stats.median) / 1e9;
+    double utilization = (bandwidth_gbps / MAX_HBM_BANDWIDTH) * 100;
 
     printf("%s: %.2f GB/s; util: %.2f\n", label, bandwidth_gbps, utilization);
 
