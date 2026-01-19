@@ -2,69 +2,36 @@
 #include "../include/timer.cuh"
 
 // Streaming read bandwidth
-__global__ void streaming_read(const float4 *__restrict__ input, float4 *__restrict__ output, size_t N_float4)
+__global__ void streaming_read(const float4 *__restrict__ input,
+                               float4 *__restrict__ output,
+                               size_t N_float4)
 {
-    int idx = blockIdx.x * blockDim.x + threadIdx.x;
-    int stride = gridDim.x * blockDim.x;
+    size_t idx = blockIdx.x * blockDim.x + threadIdx.x;
+    size_t stride = gridDim.x * blockDim.x;
 
 #pragma unroll 32
-    for (int i = idx; i < N_float4; i += stride * 4)
+    for (size_t i = idx; i < N_float4; i += stride)
     {
-        if (i < N_float4)
-        {
-            float4 v0 = __ldg(&input[i]);;
-            asm volatile("" : "+f"(v0.x), "+f"(v0.y), "+f"(v0.z), "+f"(v0.w));
-            v0.w = v0.w * 3.0f + 5.0f;
-            v0.x = v0.x * 3.0f + 5.0f;
-            v0.y = v0.y * 3.0f + 5.0f;
-            v0.z = v0.z * 3.0f + 5.0f;
-            asm volatile("" : : "f"(v0.x), "f"(v0.y), "f"(v0.z), "f"(v0.w) : "memory");
-            output[i] = v0;
-        }
+        float4 v = input[i];
 
-        if (i + 1 < N_float4)
-        {
-            float4 v1 = __ldg(&input[i + 1]);;
-            asm volatile("" : "+f"(v1.x), "+f"(v1.y), "+f"(v1.z), "+f"(v1.w));
-            v1.w = v1.w * 3.0f + 5.0f;
-            v1.x = v1.x * 3.0f + 5.0f;
-            v1.y = v1.y * 3.0f + 5.0f;
-            v1.z = v1.z * 3.0f + 5.0f;
-            asm volatile("" : : "f"(v1.x), "f"(v1.y), "f"(v1.z), "f"(v1.w) : "memory");
-            output[i + 1] = v1;
-        }
+        // Use asm to force the load and math to actually happen
+        asm volatile("" : "+f"(v.x), "+f"(v.y), "+f"(v.z), "+f"(v.w));
 
-        if (i + 2 < N_float4)
-        {
-            float4 v2 = __ldg(&input[i + 2]);;
-            asm volatile("" : "+f"(v2.x), "+f"(v2.y), "+f"(v2.z), "+f"(v2.w));
-            v2.w = v2.w * 3.0f + 5.0f;
-            v2.x = v2.x * 3.0f + 5.0f;
-            v2.y = v2.y * 3.0f + 5.0f;
-            v2.z = v2.z * 3.0f + 5.0f;
-            asm volatile("" : : "f"(v2.x), "f"(v2.y), "f"(v2.z), "f"(v2.w) : "memory");
-            output[i + 2] = v2;
-        }
+        v.x = v.x * 3.0f + 5.0f;
+        v.y = v.y * 3.0f + 5.0f;
+        v.z = v.z * 3.0f + 5.0f;
+        v.w = v.w * 3.0f + 5.0f;
 
-        if (i + 3 < N_float4)
-        {
-            float4 v3 = __ldg(&input[i + 3]);;
-            asm volatile("" : "+f"(v3.x), "+f"(v3.y), "+f"(v3.z), "+f"(v3.w));
-            v3.w = v3.w * 3.0f + 5.0f;
-            v3.x = v3.x * 3.0f + 5.0f;
-            v3.y = v3.y * 3.0f + 5.0f;
-            v3.z = v3.z * 3.0f + 5.0f;
-            asm volatile("" : : "f"(v3.x), "f"(v3.y), "f"(v3.z), "f"(v3.w) : "memory");
-            output[i + 3] = v3;
-        }
+        asm volatile("" : : "f"(v.x), "f"(v.y), "f"(v.z), "f"(v.w) : "memory");
+
+        output[i] = v;
     }
 }
 
-void benchmark_bandwidth(size_t size_bytes, const char *label)
+void benchmark_bandwidth(size_t size_bytes)
 {
     const int BLOCK_SIZE = 256;
-    const int NUM_BLOCKS = 2160;
-    const double MAX_HBM_BANDWIDTH = 2039.0;
+    const int NUM_BLOCKS = 16384;
 
     size_t N_float4 = size_bytes / sizeof(float4);
 
@@ -88,18 +55,17 @@ void benchmark_bandwidth(size_t size_bytes, const char *label)
     for (int i = 0; i < 100; i++)
     {
         timer.start_timer();
-        streaming_read<<<NUM_BLOCKS, BLOCK_SIZE>>>(d_input, d_output + (N_float4 / 2), N_float4 / 2);
+        streaming_read<<<NUM_BLOCKS, BLOCK_SIZE>>>(d_input, d_output, N_float4);
         float ms = timer.stop_timer();
         times.push_back(ms / 1000.0f); // ms to s
     }
 
     auto stats = BenchmarkStats::compute(times);
 
-    size_t bytes_transferred = static_cast<size_t>(size_bytes) * 2;
+    double bytes_transferred = (double)size_bytes * 2.0;
     double bandwidth_gbps = (bytes_transferred / stats.median) / 1e9;
-    double utilization = (bandwidth_gbps / MAX_HBM_BANDWIDTH) * 100;
 
-    printf("%-15s: %8.2f GB/s | Util: %6.2f%%\n", label, bandwidth_gbps, utilization);
+    printf("%-15s: %8.2f GB/s | Util: %6.2f%%\n", label, bandwidth_gbps, (bandwidth_gbps / 2039.0) * 100.0);
 
     cudaFree(d_input);
     cudaFree(d_output);
