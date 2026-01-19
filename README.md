@@ -42,3 +42,15 @@ then to PTX i get 15604.67+
 then go from 8 accums to 12 accums for even more ILP
 
 then go from block size 432 to 864 for even more saturation
+
+### part two: pointer chasing to determine memory latency
+Goal: expose memory access latency for each part of the memory hierarchy
+
+Using pointer chasing trick by making every subsequent memory access dependent on the result found in the previous one
+Prevents the memory prefetcher from recognizing the pattern and prefetching into L1
+
+Need to control for stride because in the case of stride = 1 the prefetcher isn't fooled. But as soon as you go over the cache line size (128 bytes) with a stride of 33 and above, you see the discrepancy because the load is happening from L1, then L2, then HBM - aka successfully fooled the prefetcher/caching mechanisms. Stride 16 also seems to be complex enough to fool the prefetcher
+
+registers -> L1 -> L2 -> HBM
+clock cycle -> SM proximity -> crossbar/partition -> DRAM physics
+
