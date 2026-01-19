@@ -77,7 +77,7 @@ void benchmark_bandwidth(size_t size_bytes, const char *label)
     // Warmup
     for (int i = 0; i < 10; i++)
     {
-        streaming_read<<<NUM_BLOCKS, BLOCK_SIZE>>>(d_input, d_output, N_float4);
+        streaming_read<<<NUM_BLOCKS, BLOCK_SIZE>>>(d_input, d_output + (N_float4 / 2), N_float4 / 2);
     }
     cudaDeviceSynchronize();
 
@@ -88,7 +88,7 @@ void benchmark_bandwidth(size_t size_bytes, const char *label)
     for (int i = 0; i < 100; i++)
     {
         timer.start_timer();
-        streaming_read<<<NUM_BLOCKS, BLOCK_SIZE>>>(d_input, d_output, N_float4);
+        streaming_read<<<NUM_BLOCKS, BLOCK_SIZE>>>(d_input, d_output + (N_float4 / 2), N_float4 / 2);
         float ms = timer.stop_timer();
         times.push_back(ms / 1000.0f); // ms to s
     }
