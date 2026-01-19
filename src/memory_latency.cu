@@ -42,6 +42,15 @@ __global__ void pointer_chase_kernel(int *chain, int *output, int chase_count)
     for (int i = 0; i < chase_count; i++)
     {
         cur = chain[cur];
+        cur = chain[cur];
+        cur = chain[cur];
+        cur = chain[cur];
+        cur = chain[cur];
+        cur = chain[cur];
+        cur = chain[cur];
+        cur = chain[cur];
+        cur = chain[cur];
+        cur = chain[cur];
     }
 
     output[threadIdx.x] = cur;
