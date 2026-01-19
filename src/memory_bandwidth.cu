@@ -5,12 +5,9 @@
 __global__ void streaming_read(const float *input, float *output, size_t N)
 {
     int idx = blockIdx.x * blockDim.x + threadIdx.x;
-    for (int j = 0; j < 1000; j++)
+    for (int i = idx; i < N; i += gridDim.x * blockDim.x)
     {
-        for (int i = idx; i < N; i += gridDim.x * blockDim.x)
-        {
-            output[i] = input[i] * 3 + 5;
-        }
+        output[i] = input[i] * 3 + 5;
     }
 }
 
