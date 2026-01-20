@@ -1,15 +1,15 @@
 #include <stdio.h>
 #include "../include/timer.cuh"
-
 #include <vector>
 #include <numeric>
 #include <algorithm>
 #include <random>
+#include <cstring>
 
 // Low register pressure (simple kernel)
 __global__ void low_registers(float *data, int N)
 {
-    // Uses ~10 registers
+    // Uses 8 registers
     int idx = blockIdx.x * blockDim.x + threadIdx.x;
     if (idx < N)
     {
@@ -19,6 +19,7 @@ __global__ void low_registers(float *data, int N)
     }
 }
 
+// uses 136 regs
 __global__ void high_registers(float *data, int N)
 {
     int idx = blockIdx.x * blockDim.x + threadIdx.x;
@@ -328,65 +329,289 @@ __global__ void high_registers(float *data, int N)
     }
 }
 
-// Helper to compute and print stats
-void print_results(const char *label, float median_us, float baseline_ms = 0.0f)
+// Result struct for storing benchmark data
+struct Result
 {
-    float slowdown = (baseline_ms > 0) ? (median_us / (baseline_ms * 1000.0f)) : 1.0f;
-
-    printf("%-22s | Time: %8.2f us | Slowdown: %5.2fx\n",
-           label, median_us, slowdown);
-}
+    const char *name;
+    int block_size;
+    int registers;
+    int blocks_per_sm;
+    int warps_per_sm;
+    float occupancy;
+    float time_us;
+};
 
 void run_reg_pressure_analysis()
 {
-    size_t N = 64 * 1024 * 1024;
+    const int N = 1 << 20; // 1M elements
+    const size_t bytes = N * sizeof(float);
+    const int NUM_RUNS = 100;
+    const int WARMUP_RUNS = 10;
 
-    float *d_output;
-    cudaMalloc(&d_output, N * sizeof(float));
+    // Allocate memory
+    float *d_data;
+    cudaMalloc(&d_data, bytes);
 
-    const int BLOCK_SIZE = 256;
-    const int NUM_BLOCKS = (N + BLOCK_SIZE - 1) / BLOCK_SIZE;
-
-    CUDATimer timer;
-    std::vector<float> times;
-
-    // --- 1. low_regs ---
-    for (int i = 0; i < 10; i++)
-        low_registers<<<NUM_BLOCKS, BLOCK_SIZE>>>(d_output, N);
-    cudaDeviceSynchronize();
-
-    for (int i = 0; i < 50; i++)
+    // Initialize with random data
+    std::vector<float> h_data(N);
+    std::mt19937 rng(42);
+    std::uniform_real_distribution<float> dist(0.0f, 1.0f);
+    for (int i = 0; i < N; i++)
     {
-        timer.start_timer();
-        low_registers<<<NUM_BLOCKS, BLOCK_SIZE>>>(d_output, N);
-        times.push_back(timer.stop_timer());
+        h_data[i] = dist(rng);
     }
-    auto low_registers_stats = BenchmarkStats::compute(times);
-    float baseline_ms = low_registers_stats.median;
-    print_results("low_registers", baseline_ms * 1000.0f, baseline_ms);
-    times.clear();
+    cudaMemcpy(d_data, h_data.data(), bytes, cudaMemcpyHostToDevice);
 
-    // --- 2. high_registers ---
-    for (int i = 0; i < 10; i++)
-        high_registers<<<NUM_BLOCKS, BLOCK_SIZE>>>(d_output, N);
-    cudaDeviceSynchronize();
+    // Get device properties
+    cudaDeviceProp prop;
+    cudaGetDeviceProperties(&prop, 0);
+    printf("Device: %s\n", prop.name);
+    printf("Registers per SM: %d\n", prop.regsPerMultiprocessor);
+    printf("Max threads per SM: %d\n", prop.maxThreadsPerMultiProcessor);
+    printf("Max warps per SM: %d\n", prop.maxThreadsPerMultiProcessor / 32);
+    printf("SMs: %d\n\n", prop.multiProcessorCount);
 
-    for (int i = 0; i < 50; i++)
+    // Test different block sizes
+    std::vector<int> block_sizes = {64, 128, 256, 512, 1024};
+
+    printf("================================================================================\n");
+    printf("OCCUPANCY ANALYSIS\n");
+    printf("================================================================================\n");
+    printf("%-12s | %-8s | %-8s | %-10s | %-10s | %-12s\n",
+           "Kernel", "BlkSize", "Regs", "Blocks/SM", "Warps/SM", "Occupancy");
+    printf("--------------------------------------------------------------------------------\n");
+
+    // Store results for analysis
+    std::vector<Result> results;
+
+    for (int block_size : block_sizes)
     {
-        timer.start_timer();
-        high_registers<<<NUM_BLOCKS, BLOCK_SIZE>>>(d_output, N);
-        times.push_back(timer.stop_timer());
-    }
-    auto high_registers_stats = BenchmarkStats::compute(times);
-    print_results("high_registers", high_registers_stats.median * 1000.0f, baseline_ms);
-    times.clear();
+        int grid_size = (N + block_size - 1) / block_size;
 
-    cudaFree(d_output);
+        // Low registers kernel
+        {
+            int num_blocks;
+            cudaOccupancyMaxActiveBlocksPerMultiprocessor(
+                &num_blocks, low_registers, block_size, 0);
+
+            int warps_per_sm = num_blocks * (block_size / 32);
+            int max_warps = prop.maxThreadsPerMultiProcessor / 32;
+            float occupancy = 100.0f * warps_per_sm / max_warps;
+
+            // Get register count (from nvcc output)
+            int regs = 8;
+
+            printf("%-12s | %-8d | %-8d | %-10d | %-10d | %10.1f%%\n",
+                   "low_reg", block_size, regs, num_blocks, warps_per_sm, occupancy);
+
+            // Benchmark
+            CUDATimer timer;
+            std::vector<float> times;
+
+            // Warmup
+            for (int i = 0; i < WARMUP_RUNS; i++)
+            {
+                low_registers<<<grid_size, block_size>>>(d_data, N);
+            }
+            cudaDeviceSynchronize();
+
+            // Timed runs
+            for (int i = 0; i < NUM_RUNS; i++)
+            {
+                timer.start_timer();
+                low_registers<<<grid_size, block_size>>>(d_data, N);
+                float ms = timer.stop_timer();
+                times.push_back(ms * 1000.0f); // Convert to microseconds
+            }
+
+            auto stats = BenchmarkStats::compute(times);
+            results.push_back({"low_reg", block_size, regs, num_blocks,
+                               warps_per_sm, occupancy, stats.median});
+        }
+
+        // High registers kernel
+        {
+            int num_blocks;
+            cudaOccupancyMaxActiveBlocksPerMultiprocessor(
+                &num_blocks, high_registers, block_size, 0);
+
+            int warps_per_sm = num_blocks * (block_size / 32);
+            int max_warps = prop.maxThreadsPerMultiProcessor / 32;
+            float occupancy = 100.0f * warps_per_sm / max_warps;
+
+            // Get register count (from nvcc output)
+            int regs = 136;
+
+            printf("%-12s | %-8d | %-8d | %-10d | %-10d | %10.1f%%\n",
+                   "high_reg", block_size, regs, num_blocks, warps_per_sm, occupancy);
+
+            // Benchmark
+            CUDATimer timer;
+            std::vector<float> times;
+
+            // Warmup
+            for (int i = 0; i < WARMUP_RUNS; i++)
+            {
+                high_registers<<<grid_size, block_size>>>(d_data, N);
+            }
+            cudaDeviceSynchronize();
+
+            // Timed runs
+            for (int i = 0; i < NUM_RUNS; i++)
+            {
+                timer.start_timer();
+                high_registers<<<grid_size, block_size>>>(d_data, N);
+                float ms = timer.stop_timer();
+                times.push_back(ms * 1000.0f);
+            }
+
+            auto stats = BenchmarkStats::compute(times);
+            results.push_back({"high_reg", block_size, regs, num_blocks,
+                               warps_per_sm, occupancy, stats.median});
+        }
+    }
+
+    printf("\n================================================================================\n");
+    printf("PERFORMANCE ANALYSIS\n");
+    printf("================================================================================\n");
+    printf("%-12s | %-8s | %-10s | %-12s | %-12s | %-10s\n",
+           "Kernel", "BlkSize", "Occupancy", "Time (us)", "Throughput", "Slowdown");
+    printf("--------------------------------------------------------------------------------\n");
+
+    // Find baseline (low_reg with best performance)
+    float baseline_time = 1e9;
+    for (const auto &r : results)
+    {
+        if (strcmp(r.name, "low_reg") == 0 && r.time_us < baseline_time)
+        {
+            baseline_time = r.time_us;
+        }
+    }
+
+    for (const auto &r : results)
+    {
+        float throughput_gb = (N * sizeof(float) * 2) / (r.time_us * 1e-6) / 1e9;
+        float slowdown = r.time_us / baseline_time;
+        printf("%-12s | %-8d | %9.1f%% | %10.2f | %8.2f GB/s | %9.2fx\n",
+               r.name, r.block_size, r.occupancy, r.time_us, throughput_gb, slowdown);
+    }
+
+    printf("\n================================================================================\n");
+    printf("ANALYSIS: OCCUPANCY vs PERFORMANCE\n");
+    printf("================================================================================\n");
+
+    // Group by block size and compare
+    printf("\nBlock Size | Low Reg Occ | High Reg Occ | Low Time | High Time | Perf Ratio\n");
+    printf("---------------------------------------------------------------------------\n");
+
+    for (int bs : block_sizes)
+    {
+        Result low_r{}, high_r{};
+        for (const auto &r : results)
+        {
+            if (r.block_size == bs)
+            {
+                if (strcmp(r.name, "low_reg") == 0)
+                    low_r = r;
+                else
+                    high_r = r;
+            }
+        }
+
+        float perf_ratio = high_r.time_us / low_r.time_us;
+
+        printf("%-10d | %10.1f%% | %11.1f%% | %8.2f | %9.2f | %9.2fx\n",
+               bs, low_r.occupancy, high_r.occupancy,
+               low_r.time_us, high_r.time_us, perf_ratio);
+    }
+
+    printf("\n================================================================================\n");
+    printf("KEY INSIGHTS\n");
+    printf("================================================================================\n");
+    printf("1. Register pressure (136 regs) reduces occupancy by limiting blocks/SM\n");
+    printf("2. SM can hold %d regs: %d/136 = %d threads max (~%d warps)\n",
+           prop.regsPerMultiprocessor, prop.regsPerMultiprocessor,
+           prop.regsPerMultiprocessor / 136, prop.regsPerMultiprocessor / 136 / 32);
+    printf("3. Low register kernel can achieve higher occupancy\n");
+    printf("4. Performance impact depends on whether kernel is:\n");
+    printf("   - Memory-bound: Low occupancy hurts (can't hide latency)\n");
+    printf("   - Compute-bound: May not matter (enough ALU work)\n");
+    printf("\n");
+
+    // Determine if memory or compute bound
+    float low_best_time = 1e9, high_best_time = 1e9;
+    for (const auto &r : results)
+    {
+        if (strcmp(r.name, "low_reg") == 0)
+            low_best_time = std::min(low_best_time, r.time_us);
+        else
+            high_best_time = std::min(high_best_time, r.time_us);
+    }
+
+    float low_bw = (N * sizeof(float) * 2) / (low_best_time * 1e-6) / 1e9;
+    float high_bw = (N * sizeof(float) * 2) / (high_best_time * 1e-6) / 1e9;
+
+    printf("Effective bandwidth - Low reg: %.1f GB/s, High reg: %.1f GB/s\n", low_bw, high_bw);
+    printf("(Peak memory bandwidth varies by GPU - A100: ~1555 GB/s, V100: ~900 GB/s)\n");
+
+    if (high_best_time > low_best_time * 2.0f)
+    {
+        printf("\nCONCLUSION: High register pressure significantly hurts performance.\n");
+        printf("           The kernel appears to be MEMORY-BOUND - low occupancy\n");
+        printf("           prevents hiding memory latency.\n");
+    }
+    else if (high_best_time > low_best_time * 1.2f)
+    {
+        printf("\nCONCLUSION: Moderate performance impact from register pressure.\n");
+        printf("           Kernel has mixed characteristics.\n");
+    }
+    else
+    {
+        printf("\nCONCLUSION: Register pressure has minimal performance impact!\n");
+        printf("           The kernel is likely COMPUTE-BOUND - enough ALU work\n");
+        printf("           to hide latency even with low occupancy.\n");
+    }
+
+    // Sweet spot analysis
+    printf("\n================================================================================\n");
+    printf("SWEET SPOT ANALYSIS\n");
+    printf("================================================================================\n");
+    printf("Finding optimal block size for each kernel...\n\n");
+
+    float best_low_time = 1e9, best_high_time = 1e9;
+    int best_low_bs = 0, best_high_bs = 0;
+    float best_low_occ = 0, best_high_occ = 0;
+
+    for (const auto &r : results)
+    {
+        if (strcmp(r.name, "low_reg") == 0 && r.time_us < best_low_time)
+        {
+            best_low_time = r.time_us;
+            best_low_bs = r.block_size;
+            best_low_occ = r.occupancy;
+        }
+        if (strcmp(r.name, "high_reg") == 0 && r.time_us < best_high_time)
+        {
+            best_high_time = r.time_us;
+            best_high_bs = r.block_size;
+            best_high_occ = r.occupancy;
+        }
+    }
+
+    printf("Low-register kernel:  Best block size = %d, Occupancy = %.1f%%, Time = %.2f us\n",
+           best_low_bs, best_low_occ, best_low_time);
+    printf("High-register kernel: Best block size = %d, Occupancy = %.1f%%, Time = %.2f us\n",
+           best_high_bs, best_high_occ, best_high_time);
+    printf("\nThe 'sweet spot' depends on your kernel's compute/memory ratio:\n");
+    printf("- Memory-bound kernels: Maximize occupancy (use fewer registers)\n");
+    printf("- Compute-bound kernels: Can trade occupancy for more registers/thread\n");
+
+    cudaFree(d_data);
 }
 
 int main()
 {
-    printf("=== Register Pressure Analysis ===\n");
+    printf("=== Register Pressure & Occupancy Analysis ===\n\n");
     run_reg_pressure_analysis();
     return 0;
 }
