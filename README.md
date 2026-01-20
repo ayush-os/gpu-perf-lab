@@ -60,3 +60,29 @@ HBM was easy - i was able to use a standard streaming kernel with float4 arrays 
 
 L1 and L2 were a fail. L2 kept on coalescing my writes and so i was getting extremely low bandwidth usage and for the L1 kernel i just had 1 float that kept getting added to, so then it ended up just staying in a register and writing back to L1 once after the 10000 iterations instead of every single time, again leading to extremely low bandwidth. :(
 
+### part four: memory access patterns
+
+results are astounding - randomization causes a 34x slowdown compared to perfect coalescing. makes sense why increases in stride cause a proportional increase but then the slowdowns taper off because once each element is already on a separate cache line, further strides do not have the same doubling effect.
+
+N: 64M elements (256MB per array)
+
+Coalesced              | Time:   359.42 us | BW: 1493.70 GB/s | Slowdown:  1.00x
+Strided      (stride  2) | Time:   902.14 us | BW:  595.11 GB/s | Slowdown:  2.51x
+Strided      (stride  4) | Time:  1773.57 us | BW:  302.71 GB/s | Slowdown:  4.93x
+Strided      (stride  8) | Time:  3538.94 us | BW:  151.70 GB/s | Slowdown:  9.85x
+Strided      (stride 16) | Time:  4818.94 us | BW:  111.41 GB/s | Slowdown: 13.41x
+Strided      (stride 32) | Time:  5284.86 us | BW:  101.59 GB/s | Slowdown: 14.70x
+Strided      (stride 64) | Time:  6879.23 us | BW:   78.04 GB/s | Slowdown: 19.14x
+Randomized             | Time: 12366.85 us | BW:   43.41 GB/s | Slowdown: 34.41x
+
+### part five: warp divergence
+
+again, just a simple experiemnt but shows the importance of avoiding conditions that split up threads in a warp. slowdown is directly proportional to the divergence factor - 2x divergence factor causes a 2x slowdown.
+
+no_divergence          | Time:  6952.96 us | Slowdown:  1.00x
+full_divergence        | Time: 269455.88 us | Slowdown: 38.75x
+partial_divergence (divergence_factor  2) | Time: 13942.78 us | Slowdown:  2.01x
+partial_divergence (divergence_factor  4) | Time: 27761.66 us | Slowdown:  3.99x
+partial_divergence (divergence_factor  8) | Time: 55406.59 us | Slowdown:  7.97x
+partial_divergence (divergence_factor 16) | Time: 121791.49 us | Slowdown: 17.52x
+partial_divergence (divergence_factor 32) | Time: 269912.09 us | Slowdown: 38.82x
