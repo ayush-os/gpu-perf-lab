@@ -9,25 +9,19 @@
 const int WARP_SIZE = 32;
 
 // Helper to compute and print stats
-void print_results(const char *label, float median_us, size_t N, float baseline_ms = 0.0f, int stride = 0)
+void print_results(const char *label, float median_us, float baseline_ms = 0.0f, int divergence_factor = 0)
 {
-    // Bandwidth = (Read Bytes + Write Bytes) / Time
-    // 2 * N * 4 bytes / (median_us / 1e6) / 1e9 = GB/s
-    double total_bytes = 2.0 * N * sizeof(float);
-    double seconds = median_us / 1e6;
-    double gb_s = (total_bytes / seconds) / 1e9;
-
     float slowdown = (baseline_ms > 0) ? (median_us / (baseline_ms * 1000.0f)) : 1.0f;
 
-    if (stride > 0)
+    if (divergence_factor > 0)
     {
-        printf("%-12s (stride %2d) | Time: %8.2f us | BW: %7.2f GB/s | Slowdown: %5.2fx\n",
-               label, stride, median_us, gb_s, slowdown);
+        printf("%-12s (divergence_factor %2d) | Time: %8.2f us | Slowdown: %5.2fx\n",
+               label, divergence_factor, median_us, slowdown);
     }
     else
     {
-        printf("%-22s | Time: %8.2f us | BW: %7.2f GB/s | Slowdown: %5.2fx\n",
-               label, median_us, gb_s, slowdown);
+        printf("%-22s | Time: %8.2f us | Slowdown: %5.2fx\n",
+               label, median_us, slowdown);
     }
 }
 
@@ -196,17 +190,14 @@ __global__ void partial_divergence(float *output, int N, int divergence_factor)
 {
     // TODO: Create controllable divergence
     // divergence_factor = how many different paths (2, 4, 8, 16, 32)
-
-    // [REDACTED - implement partial divergence]
 }
 
 void run_warp_divergence()
 {
     size_t N = 64 * 1024 * 1024;
-    size_t bytes = N * sizeof(float);
 
     float *d_output;
-    cudaMalloc(&d_output, bytes);
+    cudaMalloc(&d_output, N * sizeof(float));
 
     const int BLOCK_SIZE = 256;
     const int NUM_BLOCKS = (N + BLOCK_SIZE - 1) / BLOCK_SIZE;
@@ -227,7 +218,7 @@ void run_warp_divergence()
     }
     auto no_divergence_stats = BenchmarkStats::compute(times);
     float baseline_ms = no_divergence_stats.median;
-    print_results("no_divergence", baseline_ms * 1000.0f, N, baseline_ms);
+    print_results("no_divergence", baseline_ms * 1000.0f, baseline_ms);
     times.clear();
 
     // --- 2. full_divergence ---
@@ -242,7 +233,7 @@ void run_warp_divergence()
         times.push_back(timer.stop_timer());
     }
     auto full_divergence_stats = BenchmarkStats::compute(times);
-    print_results("full_divergence", full_divergence_stats.median * 1000.0f, N, baseline_ms);
+    print_results("full_divergence", full_divergence_stats.median * 1000.0f, baseline_ms);
     times.clear();
 
     // std::vector<int> strides = {2, 4, 8, 16, 32, 64};
