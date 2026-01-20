@@ -7,21 +7,24 @@
 #include <algorithm> // for std::shuffle
 #include <random>    // for std::mt19937 and std::random_device
 
-std::vector<size_t> generateRandomSequence(size_t N)
+int *generateCudaIndices(size_t N)
 {
-    std::vector<size_t> vec(N);
+    // 1. Generate on Host
+    std::vector<int> host_vec(N);
+    std::iota(host_vec.begin(), host_vec.end(), 0);
 
-    // 1. Fill the vector with 0, 1, ..., N-1
-    std::iota(vec.begin(), vec.end(), 0);
+    std::random_device rd;
+    std::mt19937 g(rd());
+    std::shuffle(host_vec.begin(), host_vec.end(), g);
 
-    // 2. Initialize a random number generator
-    std::random_device rd; // Seed
-    std::mt19937 g(rd());  // Mersenne Twister engine
+    // 2. Allocate on Device
+    int *device_ptr;
+    cudaMalloc(&device_ptr, N * sizeof(int));
 
-    // 3. Shuffle the vector
-    std::shuffle(vec.begin(), vec.end(), g);
+    // 3. Copy to Device
+    cudaMemcpy(device_ptr, host_vec.data(), N * sizeof(int), cudaMemcpyHostToDevice);
 
-    return vec;
+    return device_ptr;
 }
 
 // Coalesced access (best case)
@@ -69,7 +72,7 @@ __global__ void random_access(float *output, float *data, int *indices, size_t N
 
     if (idx < N)
     {
-        output[idx] = data[indices[i]] * 2.0f;
+        output[idx] = data[indices[idx]] * 2.0f;
     }
 }
 
@@ -125,11 +128,11 @@ void compare_access_patterns()
     // Warmup
     for (int i = 0; i < 10; i++)
     {
-        strided_access<<<NUM_BLOCKS, BLOCK_SIZE>>>(d_output, d_data, N);
+        strided_access<<<NUM_BLOCKS, BLOCK_SIZE>>>(d_output, d_data, N, 16);
     }
     cudaDeviceSynchronize();
 
-    vector<int> strides = {2, 16, 32, 64};
+    std::vector<int> strides = {2, 16, 32, 64};
 
     for (auto &stride : strides)
     {
@@ -148,7 +151,7 @@ void compare_access_patterns()
         times.clear();
     }
 
-    std::vector<size_t> indices = generateRandomSequence(N);
+    int *indices = generateCudaIndices(N);
 
     // Warmup
     for (int i = 0; i < 10; i++)
