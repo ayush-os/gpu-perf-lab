@@ -3,86 +3,83 @@
 #include "../include/timer.cuh"
 
 #include <vector>
-#include <numeric>   // for std::iota
-#include <algorithm> // for std::shuffle
-#include <random>    // for std::mt19937 and std::random_device
+#include <numeric>
+#include <algorithm>
+#include <random>
+
+// Helper to compute and print stats
+void print_results(const char *label, float median_us, size_t N, float baseline_ms = 0.0f, int stride = 0)
+{
+    // Bandwidth = (Read Bytes + Write Bytes) / Time
+    // 2 * N * 4 bytes / (median_us / 1e6) / 1e9 = GB/s
+    double total_bytes = 2.0 * N * sizeof(float);
+    double seconds = median_us / 1e6;
+    double gb_s = (total_bytes / seconds) / 1e9;
+
+    float slowdown = (baseline_ms > 0) ? (median_us / (baseline_ms * 1000.0f)) : 1.0f;
+
+    if (stride > 0)
+    {
+        printf("%-12s (stride %2d) | Time: %8.2f us | BW: %7.2f GB/s | Slowdown: %5.2fx\n",
+               label, stride, median_us, gb_s, slowdown);
+    }
+    else
+    {
+        printf("%-22s | Time: %8.2f us | BW: %7.2f GB/s | Slowdown: %5.2fx\n",
+               label, median_us, gb_s, slowdown);
+    }
+}
 
 int *generateCudaIndices(size_t N)
 {
-    // 1. Generate on Host
     std::vector<int> host_vec(N);
     std::iota(host_vec.begin(), host_vec.end(), 0);
-
     std::random_device rd;
     std::mt19937 g(rd());
     std::shuffle(host_vec.begin(), host_vec.end(), g);
 
-    // 2. Allocate on Device
     int *device_ptr;
     cudaMalloc(&device_ptr, N * sizeof(int));
-
-    // 3. Copy to Device
     cudaMemcpy(device_ptr, host_vec.data(), N * sizeof(int), cudaMemcpyHostToDevice);
-
     return device_ptr;
 }
 
-// Coalesced access (best case)
 __global__ void coalesced_access(float *output, float *data, size_t N)
 {
     int idx = blockIdx.x * blockDim.x + threadIdx.x;
     if (idx < N)
     {
-        // Adjacent threads access adjacent memory
-        // Thread 0 → data[0]
-        // Thread 1 → data[1]
-        // Thread 2 → data[2]
-        // This is GOOD
         output[idx] = data[idx] * 2.0f;
     }
 }
 
-// Strided access (worse performance)
+// Strided access
 __global__ void strided_access(float *output, float *data, size_t N, int stride)
 {
-    // Instead of adjacent threads accessing adjacent memory,
-    // they access memory 'stride' apart
-    //
-    // Thread 0 → data[0]
-    // Thread 1 → data[stride]
-    // Thread 2 → data[2*stride]
-
     int idx = blockIdx.x * blockDim.x + threadIdx.x;
-    int access_idx = idx * stride;
-    if (access_idx < N)
+    if (idx < N)
     {
-        output[access_idx] = data[access_idx] * 2.0f;
+        size_t strided_idx = (size_t(idx) * stride) % N;
+        output[strided_idx] = data[strided_idx] * 2.0f;
     }
 }
 
-// Random access (worst case)
 __global__ void random_access(float *output, float *data, int *indices, size_t N)
 {
-    // Thread i accesses data[indices[i]]
-    // Where indices is a pre-shuffled array
-    //
-    // This defeats all caching and coalescing
-
     int idx = blockIdx.x * blockDim.x + threadIdx.x;
-
     if (idx < N)
     {
-        output[idx] = data[indices[idx]] * 2.0f;
+        int target = indices[idx];
+        output[target] = data[target] * 2.0f;
     }
 }
 
 void compare_access_patterns()
 {
-    size_t N = 64 * 1024 * 1024; // 256 MB
+    size_t N = 64 * 1024 * 1024;
     size_t bytes = N * sizeof(float);
 
-    float *d_data;
-    float *d_output;
+    float *d_data, *d_output;
     cudaMalloc(&d_data, bytes);
     cudaMalloc(&d_output, bytes);
     cudaMemset(d_data, 0, bytes);
@@ -90,67 +87,45 @@ void compare_access_patterns()
     const int BLOCK_SIZE = 256;
     const int NUM_BLOCKS = (N + BLOCK_SIZE - 1) / BLOCK_SIZE;
 
-    // Benchmark each access pattern
-    // 1. Coalesced
-    // 2. Strided (try stride = 2, 16, 32, 64)
-    // 3. Random
-    //
-    // For each, measure:
-    // - Time
-    // - Achieved bandwidth
-    // - Slowdown vs coalesced
-
-    // Warmup
-    for (int i = 0; i < 10; i++)
-    {
-        coalesced_access<<<NUM_BLOCKS, BLOCK_SIZE>>>(d_output, d_data, N);
-    }
-    cudaDeviceSynchronize();
-
-    // Timing runs
     CUDATimer timer;
     std::vector<float> times;
+
+    // --- 1. COALESCED ---
+    for (int i = 0; i < 10; i++)
+        coalesced_access<<<NUM_BLOCKS, BLOCK_SIZE>>>(d_output, d_data, N);
+    cudaDeviceSynchronize();
 
     for (int i = 0; i < 50; i++)
     {
         timer.start_timer();
         coalesced_access<<<NUM_BLOCKS, BLOCK_SIZE>>>(d_output, d_data, N);
-        float ms = timer.stop_timer();
-        times.push_back(ms * 1000); // ms to us
+        times.push_back(timer.stop_timer());
     }
-
-    // Calculate statistics
-    auto stats = BenchmarkStats::compute(times);
-
-    printf("coalesced | time: %f | achieved bandwidth: %f\n", stats.median, 0.0f);
+    auto coalesced_stats = BenchmarkStats::compute(times);
+    float baseline_ms = coalesced_stats.median;
+    print_results("Coalesced", baseline_ms * 1000.0f, N);
     times.clear();
 
-    // Warmup
-    for (int i = 0; i < 10; i++)
+    // --- 2. STRIDED ---
+    std::vector<int> strides = {2, 4, 8, 16, 32, 64};
+    for (int stride : strides)
     {
-        strided_access<<<NUM_BLOCKS, BLOCK_SIZE>>>(d_output, d_data, N, 16);
-    }
-    cudaDeviceSynchronize();
+        // Warmup
+        strided_access<<<NUM_BLOCKS, BLOCK_SIZE>>>(d_output, d_data, N, stride);
+        cudaDeviceSynchronize();
 
-    std::vector<int> strides = {2, 16, 32, 64};
-
-    for (auto &stride : strides)
-    {
         for (int i = 0; i < 25; i++)
         {
             timer.start_timer();
             strided_access<<<NUM_BLOCKS, BLOCK_SIZE>>>(d_output, d_data, N, stride);
-            float ms = timer.stop_timer();
-            times.push_back(ms * 1000); // ms to us
+            times.push_back(timer.stop_timer());
         }
-
-        // Calculate statistics
-        stats = BenchmarkStats::compute(times);
-
-        printf("strided | time: %f | achieved bandwidth: %f | stride: %d\n", stats.median, 0.0f, stride);
+        auto strided_stats = BenchmarkStats::compute(times);
+        print_results("Strided", strided_stats.median * 1000.0f, N, baseline_ms, stride);
         times.clear();
     }
 
+    // --- 3. RANDOM ---
     int *indices = generateCudaIndices(N);
 
     // Warmup
@@ -164,20 +139,20 @@ void compare_access_patterns()
     {
         timer.start_timer();
         random_access<<<NUM_BLOCKS, BLOCK_SIZE>>>(d_output, d_data, indices, N);
-        float ms = timer.stop_timer();
-        times.push_back(ms * 1000); // ms to us
+        times.push_back(timer.stop_timer());
     }
-
-    stats = BenchmarkStats::compute(times);
-    printf("randomized | time: %f | achieved bandwidth: %f\n", stats.median, 0.0f);
+    auto random_stats = BenchmarkStats::compute(times);
+    print_results("Randomized", random_stats.median * 1000.0f, N, baseline_ms);
 
     cudaFree(d_data);
     cudaFree(d_output);
+    cudaFree(indices);
 }
 
 int main()
 {
-    printf("=== Memory Access Pattern Analysis ===\n\n");
+    printf("=== Memory Access Pattern Analysis ===\n");
+    printf("N: 64M elements (256MB per array)\n\n");
     compare_access_patterns();
     return 0;
 }
