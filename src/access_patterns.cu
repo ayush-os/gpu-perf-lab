@@ -122,7 +122,7 @@ void compare_access_patterns()
     // Calculate statistics
     auto stats = BenchmarkStats::compute(times);
 
-    printf("coalesced | time: %f | achieved bandwidth: %f", stats.median, 0.0f);
+    printf("coalesced | time: %f | achieved bandwidth: %f\n", stats.median, 0.0f);
     times.clear();
 
     // Warmup
@@ -147,7 +147,7 @@ void compare_access_patterns()
         // Calculate statistics
         stats = BenchmarkStats::compute(times);
 
-        printf("coalesced | time: %f | achieved bandwidth: %f | stride: %d", stats.median, 0.0f, stride);
+        printf("coalesced | time: %f | achieved bandwidth: %f | stride: %d\n", stats.median, 0.0f, stride);
         times.clear();
     }
 
@@ -169,7 +169,7 @@ void compare_access_patterns()
     }
 
     stats = BenchmarkStats::compute(times);
-    printf("randomized | time: %f | achieved bandwidth: %f", stats.median, 0.0f);
+    printf("randomized | time: %f | achieved bandwidth: %f\n", stats.median, 0.0f);
 
     cudaFree(d_data);
     cudaFree(d_output);
