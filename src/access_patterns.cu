@@ -147,7 +147,7 @@ void compare_access_patterns()
         // Calculate statistics
         stats = BenchmarkStats::compute(times);
 
-        printf("coalesced | time: %f | achieved bandwidth: %f | stride: %d\n", stats.median, 0.0f, stride);
+        printf("strided | time: %f | achieved bandwidth: %f | stride: %d\n", stats.median, 0.0f, stride);
         times.clear();
     }
 
