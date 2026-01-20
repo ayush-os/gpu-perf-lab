@@ -200,16 +200,8 @@ void print_results(const char *label, float median_us, float baseline_ms = 0.0f)
 {
     float slowdown = (baseline_ms > 0) ? (median_us / (baseline_ms * 1000.0f)) : 1.0f;
 
-    if (divergence_factor > 0)
-    {
-        printf("%-12s (divergence_factor %2d) | Time: %8.2f us | Slowdown: %5.2fx\n",
-               label, divergence_factor, median_us, slowdown);
-    }
-    else
-    {
-        printf("%-22s | Time: %8.2f us | Slowdown: %5.2fx\n",
-               label, median_us, slowdown);
-    }
+    printf("%-22s | Time: %8.2f us | Slowdown: %5.2fx\n",
+           label, median_us, slowdown);
 }
 
 void run_reg_pressure_analysis()
