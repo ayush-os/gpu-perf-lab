@@ -54,3 +54,9 @@ Need to control for stride because in the case of stride = 1 the prefetcher isn'
 registers -> L1 -> L2 -> HBM
 clock cycle -> SM proximity -> crossbar/partition -> DRAM physics
 
+### part three: trying to saturate memory bandwidth across HBM, L1, L2
+
+HBM was easy - i was able to use a standard streaming kernel with float4 arrays and a accumulator to achieve 1.7+ (84% utilization) of the A100 SXM4's 2 TB/s HBM bandwidth
+
+L1 and L2 were a fail. L2 kept on coalescing my writes and so i was getting extremely low bandwidth usage and for the L1 kernel i just had 1 float that kept getting added to, so then it ended up just staying in a register and writing back to L1 once after the 10000 iterations instead of every single time, again leading to extremely low bandwidth. :(
+
