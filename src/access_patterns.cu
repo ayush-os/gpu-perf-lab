@@ -2,6 +2,28 @@
 #include <stdio.h>
 #include "../include/timer.cuh"
 
+#include <vector>
+#include <numeric>   // for std::iota
+#include <algorithm> // for std::shuffle
+#include <random>    // for std::mt19937 and std::random_device
+
+std::vector<size_t> generateRandomSequence(size_t N)
+{
+    std::vector<size_t> vec(N);
+
+    // 1. Fill the vector with 0, 1, ..., N-1
+    std::iota(vec.begin(), vec.end(), 0);
+
+    // 2. Initialize a random number generator
+    std::random_device rd; // Seed
+    std::mt19937 g(rd());  // Mersenne Twister engine
+
+    // 3. Shuffle the vector
+    std::shuffle(vec.begin(), vec.end(), g);
+
+    return vec;
+}
+
 // Coalesced access (best case)
 __global__ void coalesced_access(float *output, float *data, size_t N)
 {
@@ -126,23 +148,25 @@ void compare_access_patterns()
         times.clear();
     }
 
+    std::vector<size_t> indices = generateRandomSequence(N);
+
     // Warmup
     for (int i = 0; i < 10; i++)
     {
-        random_access<<<NUM_BLOCKS, BLOCK_SIZE>>>(d_output, d_data, N);
+        random_access<<<NUM_BLOCKS, BLOCK_SIZE>>>(d_output, d_data, indices, N);
     }
     cudaDeviceSynchronize();
 
     for (int i = 0; i < 50; i++)
     {
         timer.start_timer();
-        random_access<<<NUM_BLOCKS, BLOCK_SIZE>>>(d_output, d_data, N);
+        random_access<<<NUM_BLOCKS, BLOCK_SIZE>>>(d_output, d_data, indices, N);
         float ms = timer.stop_timer();
         times.push_back(ms * 1000); // ms to us
     }
 
-    // Calculate statistics
     stats = BenchmarkStats::compute(times);
+    printf("randomized | time: %f | achieved bandwidth: %f", stats.median, 0.0f);
 
     cudaFree(d_data);
     cudaFree(d_output);
