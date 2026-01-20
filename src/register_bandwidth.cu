@@ -45,7 +45,7 @@ int main()
     // Warmup
     for (int i = 0; i < WARMUP_ITERS; i++)
     {
-        register_bandwidth_test<<<NUM_BLOCKS, BLOCK_SIZE>>>(d_output, KERNEL_ITERS, float);
+        register_bandwidth_test<<<NUM_BLOCKS, BLOCK_SIZE>>>(d_output, KERNEL_ITERS, MULT);
     }
     cudaDeviceSynchronize();
 
@@ -56,7 +56,7 @@ int main()
     for (int i = 0; i < TIMING_ITERS; i++)
     {
         timer.start_timer();
-        register_bandwidth_test<<<NUM_BLOCKS, BLOCK_SIZE>>>(d_output, KERNEL_ITERS, float);
+        register_bandwidth_test<<<NUM_BLOCKS, BLOCK_SIZE>>>(d_output, KERNEL_ITERS, MULT);
         float ms = timer.stop_timer();
         times.push_back(ms * 1000); // ms to us
     }
