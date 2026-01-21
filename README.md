@@ -95,3 +95,12 @@ Naive CUDA Cores: 5.49 ms (391.05 GFLOPS)
 Tensor Cores WMMA: 0.15 ms (14.07 TFLOPS) ---> 36x!!!
 Max Error: 0.016907
 Verification PASSED!
+
+but still extremely memory bound lol
+Memory Throughput (89.90%)
+Compute Throughput (15.86%)
+Eligible Warps (percycle i think?) (0.13)
+
+Switching from ALU to Tensor cores did significantly increase arithmetic intensity because tensor cores operated on tiles of 16x16 instead of ALU which was essentially doing 1x1.
+But the kernel is still incredibly memory bound and tensor cores are idle waiting for memory that we are reading in and storing to HBM every single time. The much better way to do this is to have a 
+shared memory buffer that we would use to dramatically lower gmmem reads/writes.
