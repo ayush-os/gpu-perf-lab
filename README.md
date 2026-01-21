@@ -104,3 +104,34 @@ Eligible Warps (percycle i think?) (0.13)
 Switching from ALU to Tensor cores did significantly increase arithmetic intensity because tensor cores operated on tiles of 16x16 instead of ALU which was essentially doing 1x1.
 But the kernel is still incredibly memory bound and tensor cores are idle waiting for memory that we are reading in and storing to HBM every single time. The much better way to do this is to have a 
 shared memory buffer that we would use to dramatically lower gmmem reads/writes.
+
+### part seven: shared memory
+
+=== Shared Memory Bank Conflicts ===
+
+No Conflicts    | Time:    20.48 us | BW:  204.80 GB/s | Slowdown:  1.00x
+Broadcast       | Time:    20.48 us | BW:  204.80 GB/s | Slowdown:  1.00x
+
+--- Testing Strided Access (Bank Conflicts) ---
+Stride 1        | Time:    36.86 us | BW:  113.78 GB/s | Slowdown:  1.80x
+Stride 2        | Time:    39.94 us | BW:  105.03 GB/s | Slowdown:  1.95x
+Stride 4        | Time:    54.27 us | BW:   77.28 GB/s | Slowdown:  2.65x
+Stride 8        | Time:    83.97 us | BW:   49.95 GB/s | Slowdown:  4.10x
+Stride 16       | Time:   143.36 us | BW:   29.26 GB/s | Slowdown:  7.00x
+Stride 32       | Time:   262.14 us | BW:   16.00 GB/s | Slowdown: 12.80x (32-way conflict!)
+Stride 33       | Time:    36.86 us | BW:  113.78 GB/s | Slowdown:  1.80x (Conflict-free)
+Stride 64       | Time:   262.14 us | BW:   16.00 GB/s | Slowdown: 12.80x
+
+Hard to trick the compiler here but was able to get a pretty decent sense of how overlapping accesses to the same bank in smem causes a slowdown
+
+stride = 1 had
+ l1tex__data_bank_conflicts_pipe_lsu_mem_shared_op_ld.sum  7,573 (prolly due to some internal bookkeeping from calling __synchtreads() 131000 times)
+
+ stride = 32 had 
+  l1tex__data_bank_conflicts_pipe_lsu_mem_shared_op_ld.sum 32,517,775
+
+no_conflicts and broadcasting had
+l1tex__data_bank_conflicts_pipe_lsu_mem_shared_op_ld.sum                        0
+
+Holy!!!! 4000x increase in bank conflicts from stride = 1 to stride = 32
+Slowdown was not as bad because gpu was still doing other useful work during the serialization of the reads from smem.
