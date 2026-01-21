@@ -14,7 +14,7 @@ __global__ void no_conflicts(float *output, int N)
 
     // Read back
     float val = smem[threadIdx.x];
-    output[blockIdx.x * blockDim.x + threadIdx.x] = val;
+    output[blockIdx.x * blockDim.x + threadIdx.x] = val + 0.000001f * (float)threadIdx.x;
 }
 
 // Bank conflicts (stride access)
@@ -33,7 +33,7 @@ __global__ void with_conflicts(float *output, int stride, int N)
     __syncthreads();
 
     float val = ((volatile float*)smem)[threadIdx.x * stride];
-    output[blockIdx.x * blockDim.x + threadIdx.x] = val;
+    output[blockIdx.x * blockDim.x + threadIdx.x] = val + 0.000001f * (float)threadIdx.x;
 }
 
 // Broadcast (special case - no conflict)
@@ -45,7 +45,7 @@ __global__ void broadcast_access(float *output, int N)
     __syncthreads();
 
     float val = smem[0];
-    output[blockIdx.x * blockDim.x + threadIdx.x] = val;
+    output[blockIdx.x * blockDim.x + threadIdx.x] = val + 0.000001f * (float)threadIdx.x;
 }
 
 void print_results(const char *label, float median_us, size_t N, float baseline_ms = 0.0f, int stride = 0)
