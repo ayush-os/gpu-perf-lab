@@ -14,15 +14,18 @@ __global__ void no_conflicts(float *output, int N)
     for (int i = 0; i < 32; i++)
     {
         acc += smem[threadIdx.x];
+        __syncthreads();
     }
 
     output[blockIdx.x * blockDim.x + threadIdx.x] = acc;
 }
 
+// Bank conflicts (stride access)
 __global__ void with_conflicts(float *output, int stride, int N)
 {
-    __shared__ float smem[8192];
+    __shared__ float smem[8192]; // Larger to handle stride * 256
 
+    // Initialize all of shared memory we might touch
     for (int i = threadIdx.x; i < 8192; i += blockDim.x)
         smem[i] = i * 1.0f;
     __syncthreads();
@@ -34,6 +37,7 @@ __global__ void with_conflicts(float *output, int stride, int N)
     {
         int idx = (threadIdx.x * stride) % 8192;
         acc += smem[idx];
+        __syncthreads();
     }
 
     output[blockIdx.x * blockDim.x + threadIdx.x] = acc;
@@ -53,6 +57,7 @@ __global__ void broadcast_access(float *output, int N)
     for (int i = 0; i < 32; i++)
     {
         acc += smem[0];
+        __syncthreads();
     }
 
     output[blockIdx.x * blockDim.x + threadIdx.x] = acc;
