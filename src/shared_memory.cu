@@ -48,6 +48,37 @@ __global__ void broadcast_access(float *output, int N)
     output[blockIdx.x * blockDim.x + threadIdx.x] = val;
 }
 
+void print_results(const char *label, float median_us, size_t N, float baseline_ms = 0.0f, int stride = 0)
+{
+    // Total bytes moved across the bus (Global Memory Writes)
+    // Note: Shared memory traffic isn't counted in global BW,
+    // but this helps show the performance impact on the overall kernel.
+    double total_bytes = (double)N * sizeof(float);
+    double seconds = median_us / 1e6;
+    double gb_s = (total_bytes / seconds) / 1e9;
+
+    // Calculate how much slower this is than the "No Conflict" case
+    float slowdown = (baseline_ms > 0) ? (median_us / (baseline_ms * 1000.0f)) : 1.0f;
+
+    if (stride > 0)
+    {
+        // Highlight specific characteristics of common strides
+        const char *note = "";
+        if (stride == 32)
+            note = " (32-way conflict!)";
+        if (stride == 33)
+            note = " (Conflict-free)";
+
+        printf("%-15s | Time: %8.2f us | BW: %7.2f GB/s | Slowdown: %5.2fx%s\n",
+               label, median_us, gb_s, slowdown, note);
+    }
+    else
+    {
+        printf("%-15s | Time: %8.2f us | BW: %7.2f GB/s | Slowdown: %5.2fx\n",
+               label, median_us, gb_s, slowdown);
+    }
+}
+
 void benchmark_shared_memory()
 {
     const int N = 1024 * 1024;
