@@ -111,7 +111,7 @@ void benchmark_shared_memory()
     no_conflicts<<<NUM_BLOCKS, BLOCK_SIZE>>>(d_output, N);
     cudaDeviceSynchronize();
 
-    for (int i = 0; i < 100; i++)
+    for (int i = 0; i < 1; i++)
     {
         timer.start_timer();
         no_conflicts<<<NUM_BLOCKS, BLOCK_SIZE>>>(d_output, N);
@@ -126,7 +126,7 @@ void benchmark_shared_memory()
     broadcast_access<<<NUM_BLOCKS, BLOCK_SIZE>>>(d_output, N);
     cudaDeviceSynchronize();
 
-    for (int i = 0; i < 100; i++)
+    for (int i = 0; i < 1; i++)
     {
         timer.start_timer();
         broadcast_access<<<NUM_BLOCKS, BLOCK_SIZE>>>(d_output, N);
@@ -146,7 +146,7 @@ void benchmark_shared_memory()
         with_conflicts<<<NUM_BLOCKS, BLOCK_SIZE>>>(d_output, stride, N);
         cudaDeviceSynchronize();
 
-        for (int i = 0; i < 100; i++)
+        for (int i = 0; i < 1; i++)
         {
             timer.start_timer();
             with_conflicts<<<NUM_BLOCKS, BLOCK_SIZE>>>(d_output, stride, N);
