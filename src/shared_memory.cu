@@ -32,7 +32,7 @@ __global__ void with_conflicts(float *output, int stride, int N)
     smem[threadIdx.x] = threadIdx.x * 1.0f;
     __syncthreads();
 
-    float val = smem[threadIdx.x * stride];
+    float val = ((volatile float*)smem)[threadIdx.x * stride];
     output[blockIdx.x * blockDim.x + threadIdx.x] = val;
 }
 
