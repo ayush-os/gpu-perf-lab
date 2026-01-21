@@ -31,11 +31,36 @@ __global__ void naive_matmul(float *A, float *B, float *C, int M, int N, int K)
 
 __global__ void tensor_core_matmul(half *A, half *B, float *C, int M, int N, int K)
 {
-    // TODO: Implement the WMMA logic here
-    // 1. Calculate the row and column index for the WARP
-    // 2. Declare fragments (wmma::fragment<wmma::matrix_a, ...>)
-    // 3. Loop over the K-dimension in steps of WMMA_K
-    // 4. Load, Sync, and Store
+    int warpId = threadIdx.y;                       // out of the 4 warps in my block, which warp am I a part of?
+    int warpM = (blockIdx.y * blockDim.y + warpId); // get index of first warp in the block by doing blockIdx.y * blockDim.y and offset with the warpId to get exact pos for this
+    int warpN = blockIdx.x;                         // the horizontal index of this warp is just blockIdx.x because we only have 1 warp horizontally in each block
+
+    int row = warpM * WMMA_M; // need to consider the fact that each warp is doing 16 both horizontally and vertically
+    int col = warpN * WMMA_N;
+
+    if (row < M && col < N)
+    {
+        // Declare the fragments
+        wmma::fragment<wmma::matrix_a, WMMA_M, WMMA_N, WMMA_K, half, wmma::row_major> a_frag;
+        wmma::fragment<wmma::matrix_b, WMMA_M, WMMA_N, WMMA_K, half, wmma::row_major> b_frag;
+        wmma::fragment<wmma::accumulator, WMMA_M, WMMA_N, WMMA_K, float> c_frag;
+
+        // Initialize the output to zero
+        wmma::fill_fragment(c_frag, 0.0f);
+
+        for (int i = 0; i < K; i += WMMA_K)
+        {
+            // Load the inputs
+            wmma::load_matrix_sync(a_frag, A + (row * K) + i, K);
+            wmma::load_matrix_sync(b_frag, B + (i * N) + col, N);
+
+            // Perform the matrix multiplication
+            wmma::mma_sync(c_frag, a_frag, b_frag, c_frag);
+        }
+
+        // Store the output
+        wmma::store_matrix_sync(C + (N * row) + col, c_frag, N);
+    }
 }
 
 // --- HOST UTILITIES ---
