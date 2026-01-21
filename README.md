@@ -86,3 +86,12 @@ partial_divergence (divergence_factor  4) | Time: 27761.66 us | Slowdown:  3.99x
 partial_divergence (divergence_factor  8) | Time: 55406.59 us | Slowdown:  7.97x
 partial_divergence (divergence_factor 16) | Time: 121791.49 us | Slowdown: 17.52x
 partial_divergence (divergence_factor 32) | Time: 269912.09 us | Slowdown: 38.82x
+
+### part six: tensor cores - holy crap
+
+Matrix Dimensions: 1024 x 1024 x 1024
+
+Naive CUDA Cores: 5.49 ms (391.05 GFLOPS)
+Tensor Cores WMMA: 0.15 ms (14.07 TFLOPS) ---> 36x!!!
+Max Error: 0.016907
+Verification PASSED!
