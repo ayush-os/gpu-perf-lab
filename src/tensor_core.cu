@@ -59,7 +59,7 @@ __global__ void tensor_core_matmul(half *A, half *B, float *C, int M, int N, int
         }
 
         // Store the output
-        wmma::store_matrix_sync(C + (N * row) + col, c_frag, N);
+        wmma::store_matrix_sync(C + (N * row) + col, c_frag, N, wmma::mem_row_major);
     }
 }
 
