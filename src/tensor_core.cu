@@ -29,7 +29,8 @@ __global__ void naive_matmul(float *A, float *B, float *C, int M, int N, int K)
     }
 }
 
-__global__ void tensor_core_matmul(half *A, half *B, float *C, int M, int N, int K)
+// because the cores are loading from global memory, this achieves 90% memory utilization but only 15% compute util
+__global__ void tensor_core_matmul_v1(half *A, half *B, float *C, int M, int N, int K)
 {
     int warpId = threadIdx.y;                       // out of the 4 warps in my block, which warp am I a part of?
     int warpM = (blockIdx.y * blockDim.y + warpId); // get index of first warp in the block by doing blockIdx.y * blockDim.y and offset with the warpId to get exact pos for this
@@ -61,6 +62,69 @@ __global__ void tensor_core_matmul(half *A, half *B, float *C, int M, int N, int
         // Store the output
         wmma::store_matrix_sync(C + (N * row) + col, c_frag, N, wmma::mem_row_major);
     }
+}
+
+// TODOs
+// 1. gonna flatten for now but try doing 2d vectorized loads for gmem A/B to shared tile A/B
+// 2. consider shared memory bank conflicts
+__global__ void tensor_core_matmul_v2(half *A, half *B, float *C, int M, int N, int K)
+{
+    // shared memory tiling
+
+    __shared__ half A_tile[32][WMMA_K];
+    __shared__ half B_tile[WMMA_K][32];
+
+    wmma::fragment<wmma::matrix_a, WMMA_M, WMMA_N, WMMA_K, half, wmma::row_major> a_frag;
+    wmma::fragment<wmma::matrix_b, WMMA_M, WMMA_N, WMMA_K, half, wmma::row_major> b_frag;
+    wmma::fragment<wmma::accumulator, WMMA_M, WMMA_N, WMMA_K, float> c_frag;
+    wmma::fill_fragment(c_frag, 0.0f);
+
+    int tid = threadIdx.y * blockDim.x + threadIdx.x;
+    int NUM_THREADS_IN_BLOCK = blockDim.x * blockDim.y;
+    int warpId = threadIdx.y;
+
+    int block_row = blockIdx.y * 32;
+    int block_col = blockIdx.x * 32;
+
+    int warp_row_offset = (warpId / 2) * 16;
+    int warp_col_offset = (warpId % 2) * 16;
+
+    int row_C = block_row + warp_row_offset;
+    int col_C = block_col + warp_col_offset;
+
+    for (int k_step = 0; k_step < K; k_step += WMMA_K)
+    {
+        // load A
+        for (int i = tid; i < (32 * WMMA_K); i += NUM_THREADS_IN_BLOCK)
+        {
+            int row_tile = i / 16;
+            int col_tile = i % 16;
+
+            A_tile[row_tile][col_tile] = A[((blockIdx.y * 32) + row_tile) * K + (k_step + col_tile)];
+        }
+
+        // load B
+        for (int i = tid; i < (32 * WMMA_K); i += NUM_THREADS_IN_BLOCK)
+        {
+            int row_tile = i / 32;
+            int col_tile = i % 32;
+
+            B_tile[row_tile][col_tile] = B[(k_step + row_tile) * N + ((blockIdx.x * 32) + col_tile)];
+        }
+
+        __syncthreads();
+
+        int a_tile_row = (warpId / 2) * WMMA_K;
+        wmma::load_matrix_sync(a_frag, &A_tile[a_tile_row][0], WMMA_K);
+
+        int b_tile_col = (warpId % 2) * WMMA_K;
+        wmma::load_matrix_sync(b_frag, &B_tile[0][b_tile_col], 32);
+
+        wmma::mma_sync(c_frag, a_frag, b_frag, c_frag);
+        __syncthreads();
+    }
+
+    wmma::store_matrix_sync(C + (N * row_C) + col_C, c_frag, N, wmma::mem_row_major);
 }
 
 // --- HOST UTILITIES ---
@@ -155,17 +219,33 @@ int main()
     double ops = 2.0 * M * N * K;
     printf("Naive CUDA Cores: %.2f ms (%.2f GFLOPS)\n", naive_ms, (ops * 1e-9) / (naive_ms * 1e-3));
 
-    // --- Benchmark Tensor Core ---
-    // Note: Grid/Block for WMMA is different. One Warp (32 threads) handles a 16x16 tile.
+    // --- Benchmark Tensor Core V1 ---
     dim3 tc_block(32, 4); // 4 warps per block
     dim3 tc_grid(N / 16, M / (16 * 4));
 
     cudaMemset(d_C, 0, M * N * sizeof(float));
     timer.start_timer();
-    tensor_core_matmul<<<tc_grid, tc_block>>>(d_A_half, d_B_half, d_C, M, N, K);
+    tensor_core_matmul_v1<<<tc_grid, tc_block>>>(d_A_half, d_B_half, d_C, M, N, K);
     float tc_ms = timer.stop_timer();
 
     printf("Tensor Cores WMMA: %.2f ms (%.2f TFLOPS)\n", tc_ms, (ops * 1e-12) / (tc_ms * 1e-3));
+
+    // --- Verification ---
+    cudaMemcpy(h_C_device, d_C, M * N * sizeof(float), cudaMemcpyDeviceToHost);
+    cpu_matmul(h_A, h_B, h_C_ref, M, N, K);
+    verify_result(h_C_ref, h_C_device, M, N);
+
+    // --- Benchmark Tensor Core V2 ---
+
+    dim3 tc2_block(32, 4); // 4 warps per block
+    dim3 tc2_grid(N / 32, M / 32);
+
+    cudaMemset(d_C, 0, M * N * sizeof(float));
+    timer.start_timer();
+    tensor_core_matmul_v2<<<tc2_grid, tc2_block>>>(d_A_half, d_B_half, d_C, M, N, K);
+    float tc_ms = timer.stop_timer();
+
+    printf("Tensor Cores Smem WMMA: %.2f ms (%.2f TFLOPS)\n", tc_ms, (ops * 1e-12) / (tc_ms * 1e-3));
 
     // --- Verification ---
     cudaMemcpy(h_C_device, d_C, M * N * sizeof(float), cudaMemcpyDeviceToHost);
