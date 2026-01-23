@@ -161,3 +161,10 @@ Verification PASSED!
     l1tex__data_bank_conflicts_pipe_lsu_mem_shared_op_ld.sum                4,201,261
     l1tex__data_pipe_lsu_wavefronts_mem_shared_op_ld.sum                    6,320,726
     -------------------------------------------------------- ----------- ------------
+
+paperspace@ps83msra5sg7:~/gpu-perf-lab$ ./build/tensor_core 
+Matrix Dimensions: 4096 x 4096 x 4096
+
+Naive CUDA Cores: 277.74 ms (494.85 GFLOPS)
+Tensor Cores WMMA: 7.74 ms (17.77 TFLOPS)
+Tensor Cores Smem WMMA: 4.02 ms (34.20 TFLOPS)
