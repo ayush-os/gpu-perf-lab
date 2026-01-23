@@ -75,7 +75,7 @@ __global__ void tensor_core_matmul_v2(half *A, half *B, float *C, int M, int N, 
     __shared__ half B_tile[WMMA_K][32];
 
     uint4 *A_vec = reinterpret_cast<uint4 *>(A_tile);
-    uint4 *B_vec = reinterpret_cast<uint4 *>(A_tile);
+    uint4 *B_vec = reinterpret_cast<uint4 *>(B_tile);
 
     wmma::fragment<wmma::matrix_a, WMMA_M, WMMA_N, WMMA_K, half, wmma::row_major> a_frag;
     wmma::fragment<wmma::matrix_b, WMMA_M, WMMA_N, WMMA_K, half, wmma::row_major> b_frag;
