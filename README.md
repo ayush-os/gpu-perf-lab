@@ -168,3 +168,28 @@ Matrix Dimensions: 4096 x 4096 x 4096
 Naive CUDA Cores: 277.74 ms (494.85 GFLOPS)
 Tensor Cores WMMA: 7.74 ms (17.77 TFLOPS)
 Tensor Cores Smem WMMA: 4.02 ms (34.20 TFLOPS)
+
+paperspace@ps83msra5sg7:~/gpu-perf-lab$ sudo $(which ncu) --metrics l1tex__data_bank_conflicts_pipe_lsu_mem_shared_op_ld.sum,l1tex__data_pipe_lsu_wavefronts_mem_shared_op_ld.sum --kernel-name tensor_core_matmul_v2 ./build/tensor_core
+Matrix Dimensions: 1024 x 1024 x 1024
+
+==PROF== Connected to process 2694 (/home/paperspace/gpu-perf-lab/build/tensor_core)
+Naive CUDA Cores: 5.56 ms (386.37 GFLOPS)
+Tensor Cores WMMA: 0.38 ms (5.61 TFLOPS)
+Max Error: 0.016907
+Verification PASSED!
+==PROF== Profiling "tensor_core_matmul_v2": 0%....50%....100% - 1 pass
+Tensor Cores Smem WMMA: 383.40 ms (0.01 TFLOPS)
+Max Error: 0.016907
+Verification PASSED!
+==PROF== Disconnected from process 2694
+==WARNING== Found outstanding GPU clock reset, trying to revert...Success.
+[2694] tensor_core@127.0.0.1
+  tensor_core_matmul_v2(__half *, __half *, float *, int, int, int) (32, 32, 1)x(32, 4, 1), Context 1, Stream 7, Device 0, CC 8.0
+    Section: Command line profiler metrics
+    -------------------------------------------------------- ----------- ------------
+    Metric Name                                              Metric Unit Metric Value
+    -------------------------------------------------------- ----------- ------------
+    l1tex__data_bank_conflicts_pipe_lsu_mem_shared_op_ld.sum                        0
+    l1tex__data_pipe_lsu_wavefronts_mem_shared_op_ld.sum                    2,107,761
+    -------------------------------------------------------- ----------- ------------
+
