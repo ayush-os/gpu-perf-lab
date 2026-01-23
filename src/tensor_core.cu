@@ -112,7 +112,7 @@ __global__ void tensor_core_matmul_v2(half *A, half *B, float *C, int M, int N, 
         if (tid < 64)
         {
             int row_tile = tid / 4;
-            int col_tile = (tid % 2) * 8;
+            int col_tile = (tid % 4) * 8;
 
             const half *gmem_ptr = &B[(k_step + row_tile) * N + ((blockIdx.x * 32) + col_tile)];
 
