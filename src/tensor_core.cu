@@ -243,9 +243,9 @@ int main()
     cudaMemset(d_C, 0, M * N * sizeof(float));
     timer.start_timer();
     tensor_core_matmul_v2<<<tc2_grid, tc2_block>>>(d_A_half, d_B_half, d_C, M, N, K);
-    float tc_ms = timer.stop_timer();
+    float tc2_ms = timer.stop_timer();
 
-    printf("Tensor Cores Smem WMMA: %.2f ms (%.2f TFLOPS)\n", tc_ms, (ops * 1e-12) / (tc_ms * 1e-3));
+    printf("Tensor Cores Smem WMMA: %.2f ms (%.2f TFLOPS)\n", tc2_ms, (ops * 1e-12) / (tc2_ms * 1e-3));
 
     // --- Verification ---
     cudaMemcpy(h_C_device, d_C, M * N * sizeof(float), cudaMemcpyDeviceToHost);
