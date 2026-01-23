@@ -135,3 +135,29 @@ l1tex__data_bank_conflicts_pipe_lsu_mem_shared_op_ld.sum                        
 
 Holy!!!! 4000x increase in bank conflicts from stride = 1 to stride = 32
 Slowdown was not as bad because gpu was still doing other useful work during the serialization of the reads from smem.
+
+
+### part eight: optimizing tensor core matmul with smem
+paperspace@ps83msra5sg7:~/gpu-perf-lab$ sudo $(which ncu) --metrics l1tex__data_bank_conflicts_pipe_lsu_mem_shared_op_ld.sum,l1tex__data_pipe_lsu_wavefronts_mem_shared_op_ld.sum --kernel-name tensor_core_matmul_v2 ./build/tensor_core
+Matrix Dimensions: 1024 x 1024 x 1024
+
+==PROF== Connected to process 3171 (/home/paperspace/gpu-perf-lab/build/tensor_core)
+Naive CUDA Cores: 5.50 ms (390.43 GFLOPS)
+Tensor Cores WMMA: 0.41 ms (5.19 TFLOPS)
+Max Error: 0.016907
+Verification PASSED!
+==PROF== Profiling "tensor_core_matmul_v2": 0%....50%....100% - 1 pass
+Tensor Cores Smem WMMA: 379.80 ms (0.01 TFLOPS)
+Max Error: 0.016907
+Verification PASSED!
+==PROF== Disconnected from process 3171
+==WARNING== Found outstanding GPU clock reset, trying to revert...Success.
+[3171] tensor_core@127.0.0.1
+  tensor_core_matmul_v2(__half *, __half *, float *, int, int, int) (32, 32, 1)x(32, 4, 1), Context 1, Stream 7, Device 0, CC 8.0
+    Section: Command line profiler metrics
+    -------------------------------------------------------- ----------- ------------
+    Metric Name                                              Metric Unit Metric Value
+    -------------------------------------------------------- ----------- ------------
+    l1tex__data_bank_conflicts_pipe_lsu_mem_shared_op_ld.sum                4,201,261
+    l1tex__data_pipe_lsu_wavefronts_mem_shared_op_ld.sum                    6,320,726
+    -------------------------------------------------------- ----------- ------------
