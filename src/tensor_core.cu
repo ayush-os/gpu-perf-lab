@@ -64,9 +64,6 @@ __global__ void tensor_core_matmul_v1(half *A, half *B, float *C, int M, int N, 
     }
 }
 
-// TODOs
-// 1. gonna flatten for now but try doing 2d vectorized loads for gmem A/B to shared tile A/B
-// 2. consider shared memory bank conflicts
 __global__ void tensor_core_matmul_v2(half *A, half *B, float *C, int M, int N, int K)
 {
     // shared memory tiling
@@ -106,11 +103,9 @@ __global__ void tensor_core_matmul_v2(half *A, half *B, float *C, int M, int N, 
             const half *gmem_ptr = &A[((blockIdx.y * 32) + row_tile) * K + (k_step + col_tile)];
 
             A_vec[tid] = *reinterpret_cast<const uint4 *>(gmem_ptr);
-        }
+        } else {
+            int tid_b = tid - 64;
 
-        // load B
-        if (tid < 64)
-        {
             int row_tile = tid / 4;
             int col_tile = (tid % 4) * 8;
 
