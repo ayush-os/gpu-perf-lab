@@ -74,6 +74,8 @@ __global__ void tensor_core_matmul_v2(half *A, half *B, float *C, int M, int N, 
     __shared__ half A_tile[32][WMMA_K];
     __shared__ half B_tile[WMMA_K][32];
 
+    uint4 *A_vec = reinterpret_cast<uint4 *>(A_tile);
+
     wmma::fragment<wmma::matrix_a, WMMA_M, WMMA_N, WMMA_K, half, wmma::row_major> a_frag;
     wmma::fragment<wmma::matrix_b, WMMA_M, WMMA_N, WMMA_K, half, wmma::row_major> b_frag;
     wmma::fragment<wmma::accumulator, WMMA_M, WMMA_N, WMMA_K, float> c_frag;
@@ -95,12 +97,14 @@ __global__ void tensor_core_matmul_v2(half *A, half *B, float *C, int M, int N, 
     for (int k_step = 0; k_step < K; k_step += WMMA_K)
     {
         // load A
-        for (int i = tid; i < (32 * WMMA_K); i += NUM_THREADS_IN_BLOCK)
+        if (tid < 64)
         {
-            int row_tile = i / 16;
-            int col_tile = i % 16;
+            int row_tile = tid / 2;
+            int col_tile = (tid % 2) * 8;
 
-            A_tile[row_tile][col_tile] = A[((blockIdx.y * 32) + row_tile) * K + (k_step + col_tile)];
+            const half *gmem_ptr = &A[((blockIdx.y * 32) + row_tile) * K + (k_step + col_tile)];
+
+            A_vec[tid] = *reinterpret_cast<const uint4 *>(gmem_ptr);
         }
 
         // load B
