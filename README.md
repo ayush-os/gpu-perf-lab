@@ -138,6 +138,10 @@ Slowdown was not as bad because gpu was still doing other useful work during the
 
 
 ### part eight: optimizing tensor core matmul with smem
+Conclusions for this (bunch of random but interesting profiling and benchmarking results below)
+1. i got around 50% perf on this kernel compared to my original kernel when using 1024 x 1024, but this was before vectorization which basically doubled it and made it on par
+2. i resolved bank conflicts and this dramatically improved things too
+3. real perf benefit came by increasing problem size from 1024 x 1024 -> 4096 x 4096, where my smem perf now 2xd the v1 kernel
 paperspace@ps83msra5sg7:~/gpu-perf-lab$ sudo $(which ncu) --metrics l1tex__data_bank_conflicts_pipe_lsu_mem_shared_op_ld.sum,l1tex__data_pipe_lsu_wavefronts_mem_shared_op_ld.sum --kernel-name tensor_core_matmul_v2 ./build/tensor_core
 Matrix Dimensions: 1024 x 1024 x 1024
 
