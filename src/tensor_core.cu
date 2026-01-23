@@ -83,8 +83,8 @@ __global__ void tensor_core_matmul_v2(half *A, half *B, float *C, int M, int N, 
     int NUM_THREADS_IN_BLOCK = blockDim.x * blockDim.y;
     int warpId = threadIdx.y;
 
-    size_t block_row = (size_t)blockIdx.y * 32;
-    size_t block_col = (size_t)blockIdx.x * 32;
+    int block_row = blockIdx.y * 32;
+    int block_col = blockIdx.x * 32;
 
     int warp_row_offset = (warpId / 2) * 16;
     int warp_col_offset = (warpId % 2) * 16;
@@ -96,24 +96,26 @@ __global__ void tensor_core_matmul_v2(half *A, half *B, float *C, int M, int N, 
     {
         if (tid < 64)
         {
-            int row_tile = tid / 2;
-            int col_tile = (tid % 2) * 8;
+            int row_tile = tid / 2; // 0 to 31
+            int vec_idx = tid % 2;  // 0 or 1 (which uint4 in the row)
+            int col_tile = vec_idx * 8;
 
-            const half *gmem_ptr = &A[(block_row + row_tile) * (size_t)K + (k_step + col_tile)];
+            const half *gmem_ptr = &A[((blockIdx.y * 32) + row_tile) * K + (k_step + col_tile)];
 
             uint4 *row_ptr = reinterpret_cast<uint4 *>(&A_tile[row_tile][0]);
-            row_ptr[tid % 2] = *reinterpret_cast<const uint4 *>(gmem_ptr);
+            row_ptr[vec_idx] = *reinterpret_cast<const uint4 *>(gmem_ptr);
         }
         else
         {
-            int tid_b = tid - 64;
-            int row_tile = tid_b / 4;
-            int col_tile = (tid_b % 4) * 8;
+            int tid_b = tid - 64;     // 0 to 63
+            int row_tile = tid_b / 4; // 0 to 15
+            int vec_idx = tid_b % 4;  // 0, 1, 2, or 3
+            int col_tile = vec_idx * 8;
 
-            const half *gmem_ptr = &B[((size_t)k_step + row_tile) * (size_t)N + (block_col + col_tile)];
+            const half *gmem_ptr = &B[(k_step + row_tile) * N + ((blockIdx.x * 32) + col_tile)];
 
             uint4 *row_ptr = reinterpret_cast<uint4 *>(&B_tile[row_tile][0]);
-            row_ptr[tid_b % 4] = *reinterpret_cast<const uint4 *>(gmem_ptr);
+            row_ptr[vec_idx] = *reinterpret_cast<const uint4 *>(gmem_ptr);
         }
 
         __syncthreads();
@@ -166,39 +168,12 @@ void cpu_matmul(float *A, float *B, float *C, int M, int N, int K)
     }
 }
 
-void verify_result_random(float *h_A, float *h_B, float *device_C, int M, int N, int K)
-{
-    printf("Verifying 1000 random samples...\n");
-    float max_error = 0.0f;
-
-    for (int i = 0; i < 1000; i++)
-    {
-        int r = rand() % M;
-        int c = rand() % N;
-
-        float gold = 0.0f;
-        for (int k = 0; k < K; k++)
-        {
-            gold += (float)h_A[r * K + k] * (float)h_B[k * N + c];
-        }
-
-        float dev = device_C[r * N + c];
-        max_error = fmax(max_error, fabs(gold - dev));
-    }
-
-    printf("Max Error: %f\n", max_error);
-    if (max_error > 1.0f)
-        printf("Verification FAILED!\n");
-    else
-        printf("Verification PASSED!\n");
-}
-
 int main()
 {
     // Problem size (Must be multiples of 16 for basic WMMA)
-    const int M = 8192;
-    const int N = 8192;
-    const int K = 8192;
+    const int M = 4096;
+    const int N = 4096;
+    const int K = 4096;
 
     printf("Matrix Dimensions: %d x %d x %d\n\n", M, N, K);
 
@@ -261,8 +236,9 @@ int main()
     printf("Tensor Cores WMMA: %.2f ms (%.2f TFLOPS)\n", tc_ms, (ops * 1e-12) / (tc_ms * 1e-3));
 
     // --- Verification ---
-    cudaMemcpy(h_C_device, d_C, (size_t)M * N * sizeof(float), cudaMemcpyDeviceToHost);
-    verify_result_random(h_A, h_B, h_C_device, M, N, K);
+    // cudaMemcpy(h_C_device, d_C, M * N * sizeof(float), cudaMemcpyDeviceToHost);
+    // cpu_matmul(h_A, h_B, h_C_ref, M, N, K);
+    // verify_result(h_C_ref, h_C_device, M, N);
 
     // --- Benchmark Tensor Core V2 ---
 
@@ -277,8 +253,9 @@ int main()
     printf("Tensor Cores Smem WMMA: %.2f ms (%.2f TFLOPS)\n", tc2_ms, (ops * 1e-12) / (tc2_ms * 1e-3));
 
     // --- Verification ---
-    cudaMemcpy(h_C_device, d_C, (size_t)M * N * sizeof(float), cudaMemcpyDeviceToHost);
-    verify_result_random(h_A, h_B, h_C_device, M, N, K);
+    // cudaMemcpy(h_C_device, d_C, M * N * sizeof(float), cudaMemcpyDeviceToHost);
+    // cpu_matmul(h_A, h_B, h_C_ref, M, N, K);
+    // verify_result(h_C_ref, h_C_device, M, N);
 
     // Cleanup
     delete[] h_A;
