@@ -103,15 +103,17 @@ __global__ void tensor_core_matmul_v2(half *A, half *B, float *C, int M, int N, 
             const half *gmem_ptr = &A[((blockIdx.y * 32) + row_tile) * K + (k_step + col_tile)];
 
             A_vec[tid] = *reinterpret_cast<const uint4 *>(gmem_ptr);
-        } else {
+        }
+        else
+        {
             int tid_b = tid - 64;
 
-            int row_tile = tid / 4;
-            int col_tile = (tid % 4) * 8;
+            int row_tile = tid_b / 4;
+            int col_tile = (tid_b % 4) * 8;
 
             const half *gmem_ptr = &B[(k_step + row_tile) * N + ((blockIdx.x * 32) + col_tile)];
 
-            B_vec[tid] = *reinterpret_cast<const uint4 *>(gmem_ptr);
+            B_vec[tid_b] = *reinterpret_cast<const uint4 *>(gmem_ptr);
         }
 
         __syncthreads();
