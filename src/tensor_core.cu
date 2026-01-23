@@ -171,9 +171,9 @@ void cpu_matmul(float *A, float *B, float *C, int M, int N, int K)
 int main()
 {
     // Problem size (Must be multiples of 16 for basic WMMA)
-    const int M = 1024;
-    const int N = 1024;
-    const int K = 1024;
+    const int M = 4096;
+    const int N = 4096;
+    const int K = 4096;
 
     printf("Matrix Dimensions: %d x %d x %d\n\n", M, N, K);
 
