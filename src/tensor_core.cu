@@ -135,16 +135,14 @@ __global__ void tensor_core_matmul_v3(half *A, half *B, float *C, int M, int N, 
     // Larger K-tile: 64 instead of 16
     // This means 4 WMMA operations per tile load, amortizing global memory cost
     const int K_TILE = 64;
-    const int A_STRIDE = K_TILE + 8; // 72
-    const int B_STRIDE = 32 + 8;     // 40
 
     // Shared memory: 32 rows x 64 cols for A, 64 rows x 32 cols for B
     // Padding to avoid bank conflicts
-    __shared__ half A_tile[32][A_STRIDE];
-    __shared__ half B_tile[K_TILE][B_STRIDE];
+    __shared__ half A_tile[32][K_TILE + 8];
+    __shared__ half B_tile[K_TILE][32 + 8];
 
-    wmma::fragment<wmma::matrix_a, WMMA_M, WMMA_N, WMMA_K, half, wmma::row_major> a_frag;
-    wmma::fragment<wmma::matrix_b, WMMA_M, WMMA_N, WMMA_K, half, wmma::row_major> b_frag;
+    wmma::fragment<wmma::matrix_a, WMMA_M, WMMA_N, WMMA_K, half, wmma::row_major> a_frag[4];
+    wmma::fragment<wmma::matrix_b, WMMA_M, WMMA_N, WMMA_K, half, wmma::row_major> b_frag[4];
     wmma::fragment<wmma::accumulator, WMMA_M, WMMA_N, WMMA_K, float> c_frag;
     wmma::fill_fragment(c_frag, 0.0f);
 
@@ -162,6 +160,11 @@ __global__ void tensor_core_matmul_v3(half *A, half *B, float *C, int M, int N, 
 
     int a_tile_row = (warpId / 2) * WMMA_M;
     int b_tile_col = (warpId % 2) * WMMA_N;
+
+    // We have 128 threads (4 warps * 32 threads)
+    // A_tile: 32 rows x 64 cols = 2048 halfs = 256 uint4s (8 halfs per uint4)
+    // B_tile: 64 rows x 32 cols = 2048 halfs = 256 uint4s
+    // Total: 512 uint4 loads, 128 threads -> 4 loads per thread
 
     for (int k_step = 0; k_step < K; k_step += K_TILE)
     {
@@ -201,9 +204,9 @@ __global__ void tensor_core_matmul_v3(half *A, half *B, float *C, int M, int N, 
 #pragma unroll
         for (int k_inner = 0; k_inner < K_TILE; k_inner += WMMA_K)
         {
-            wmma::load_matrix_sync(a_frag, &A_tile[a_tile_row][k_inner], A_STRIDE);
-            wmma::load_matrix_sync(b_frag, &B_tile[k_inner][b_tile_col], B_STRIDE);
-            wmma::mma_sync(c_frag, a_frag, b_frag, c_frag);
+            wmma::load_matrix_sync(a_frag[0], &A_tile[a_tile_row][k_inner], K_TILE + 8);
+            wmma::load_matrix_sync(b_frag[0], &B_tile[k_inner][b_tile_col], 32 + 8);
+            wmma::mma_sync(c_frag, a_frag[0], b_frag[0], c_frag);
         }
 
         __syncthreads();
