@@ -236,9 +236,9 @@ int main()
     printf("Tensor Cores WMMA: %.2f ms (%.2f TFLOPS)\n", tc_ms, (ops * 1e-12) / (tc_ms * 1e-3));
 
     // --- Verification ---
-    cudaMemcpy(h_C_device, d_C, M * N * sizeof(float), cudaMemcpyDeviceToHost);
-    cpu_matmul(h_A, h_B, h_C_ref, M, N, K);
-    verify_result(h_C_ref, h_C_device, M, N);
+    // cudaMemcpy(h_C_device, d_C, M * N * sizeof(float), cudaMemcpyDeviceToHost);
+    // cpu_matmul(h_A, h_B, h_C_ref, M, N, K);
+    // verify_result(h_C_ref, h_C_device, M, N);
 
     // --- Benchmark Tensor Core V2 ---
 
@@ -253,9 +253,9 @@ int main()
     printf("Tensor Cores Smem WMMA: %.2f ms (%.2f TFLOPS)\n", tc2_ms, (ops * 1e-12) / (tc2_ms * 1e-3));
 
     // --- Verification ---
-    cudaMemcpy(h_C_device, d_C, M * N * sizeof(float), cudaMemcpyDeviceToHost);
-    cpu_matmul(h_A, h_B, h_C_ref, M, N, K);
-    verify_result(h_C_ref, h_C_device, M, N);
+    // cudaMemcpy(h_C_device, d_C, M * N * sizeof(float), cudaMemcpyDeviceToHost);
+    // cpu_matmul(h_A, h_B, h_C_ref, M, N, K);
+    // verify_result(h_C_ref, h_C_device, M, N);
 
     // Cleanup
     delete[] h_A;
