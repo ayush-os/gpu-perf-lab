@@ -129,90 +129,6 @@ __global__ void tensor_core_matmul_v2(half *A, half *B, float *C, int M, int N, 
         __syncthreads();
     }
 
-    __global__ void tensor_core_matmul_v3(half * A, half * B, float *C, int M, int N, int K)
-    {
-        // Larger K-tile: 64 instead of 16
-        // This means 4 WMMA operations per tile load, amortizing global memory cost
-        const int K_TILE = 64;
-
-        // Shared memory: 32 rows x 64 cols for A, 64 rows x 32 cols for B
-        // Padding to avoid bank conflicts
-        __shared__ half A_tile[32][K_TILE + 8];
-        __shared__ half B_tile[K_TILE][32 + 8];
-
-        wmma::fragment<wmma::matrix_a, WMMA_M, WMMA_N, WMMA_K, half, wmma::row_major> a_frag[4];
-        wmma::fragment<wmma::matrix_b, WMMA_M, WMMA_N, WMMA_K, half, wmma::row_major> b_frag[4];
-        wmma::fragment<wmma::accumulator, WMMA_M, WMMA_N, WMMA_K, float> c_frag;
-        wmma::fill_fragment(c_frag, 0.0f);
-
-        int tid = threadIdx.y * blockDim.x + threadIdx.x;
-        int warpId = threadIdx.y;
-
-        int block_row = blockIdx.y * 32;
-        int block_col = blockIdx.x * 32;
-
-        int warp_row_offset = (warpId / 2) * 16;
-        int warp_col_offset = (warpId % 2) * 16;
-
-        int row_C = block_row + warp_row_offset;
-        int col_C = block_col + warp_col_offset;
-
-        int a_tile_row = (warpId / 2) * WMMA_M;
-        int b_tile_col = (warpId % 2) * WMMA_N;
-
-        // We have 128 threads (4 warps * 32 threads)
-        // A_tile: 32 rows x 64 cols = 2048 halfs = 256 uint4s (8 halfs per uint4)
-        // B_tile: 64 rows x 32 cols = 2048 halfs = 256 uint4s
-        // Total: 512 uint4 loads, 128 threads -> 4 loads per thread
-
-        for (int k_step = 0; k_step < K; k_step += K_TILE)
-        {
-// Load A_tile: 32 x 64 = 2048 elements = 256 uint4s
-// Each thread loads 2 uint4s for A
-#pragma unroll
-            for (int load = 0; load < 2; load++)
-            {
-                int linear_idx = tid + load * 128; // 0-255
-                int row_tile = linear_idx / 8;     // 0-31 (64 cols / 8 = 8 uint4s per row)
-                int vec_idx = linear_idx % 8;      // 0-7
-                int col_tile = vec_idx * 8;
-
-                const half *gmem_ptr = &A[(block_row + row_tile) * K + (k_step + col_tile)];
-                uint4 *row_ptr = reinterpret_cast<uint4 *>(&A_tile[row_tile][0]);
-                row_ptr[vec_idx] = *reinterpret_cast<const uint4 *>(gmem_ptr);
-            }
-
-// Load B_tile: 64 x 32 = 2048 elements = 256 uint4s
-// Each thread loads 2 uint4s for B
-#pragma unroll
-            for (int load = 0; load < 2; load++)
-            {
-                int linear_idx = tid + load * 128; // 0-255
-                int row_tile = linear_idx / 4;     // 0-63 (32 cols / 8 = 4 uint4s per row)
-                int vec_idx = linear_idx % 4;      // 0-3
-                int col_tile = vec_idx * 8;
-
-                const half *gmem_ptr = &B[(k_step + row_tile) * N + (block_col + col_tile)];
-                uint4 *row_ptr = reinterpret_cast<uint4 *>(&B_tile[row_tile][0]);
-                row_ptr[vec_idx] = *reinterpret_cast<const uint4 *>(gmem_ptr);
-            }
-
-            __syncthreads();
-
-// Now do 4 WMMA operations along the K dimension
-#pragma unroll
-            for (int k_inner = 0; k_inner < K_TILE; k_inner += WMMA_K)
-            {
-                wmma::load_matrix_sync(a_frag[0], &A_tile[a_tile_row][k_inner], K_TILE + 8);
-                wmma::load_matrix_sync(b_frag[0], &B_tile[k_inner][b_tile_col], 32 + 8);
-                wmma::mma_sync(c_frag, a_frag[0], b_frag[0], c_frag);
-            }
-
-            __syncthreads();
-        }
-
-        wmma::store_matrix_sync(C + (N * row_C) + col_C, c_frag, N, wmma::mem_row_major);
-    }
     wmma::store_matrix_sync(C + (N * row_C) + col_C, c_frag, N, wmma::mem_row_major);
 }
 
@@ -340,20 +256,6 @@ int main()
     // cudaMemcpy(h_C_device, d_C, M * N * sizeof(float), cudaMemcpyDeviceToHost);
     // cpu_matmul(h_A, h_B, h_C_ref, M, N, K);
     // verify_result(h_C_ref, h_C_device, M, N);
-
-    dim3 tc3_block(32, 4); // 4 warps per block
-    dim3 tc3_grid(N / 32, M / 32);
-
-    cudaMemset(d_C, 0, M * N * sizeof(float));
-    timer.start_timer();
-    tensor_core_matmul_v3<<<tc3_grid, tc3_block>>>(d_A_half, d_B_half, d_C, M, N, K);
-    float tc3_ms = timer.stop_timer();
-
-    printf("Tensor Cores K64 WMMA: %.2f ms (%.2f TFLOPS)\n", tc3_ms, (ops * 1e-12) / (tc3_ms * 1e-3));
-
-    // --- Verification ---
-    cudaMemcpy(h_C_device, d_C, M * N * sizeof(float), cudaMemcpyDeviceToHost);
-    verify_result(h_C_ref, h_C_device, M, N);
 
     // Cleanup
     delete[] h_A;
