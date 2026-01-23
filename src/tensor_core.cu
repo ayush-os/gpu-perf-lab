@@ -68,8 +68,8 @@ __global__ void tensor_core_matmul_v2(half *A, half *B, float *C, int M, int N, 
 {
     // shared memory tiling
 
-    __shared__ half A_tile[32][WMMA_K];
-    __shared__ half B_tile[WMMA_K][32];
+    __shared__ half A_tile[32][16 + 8];
+    __shared__ half B_tile[16][32 + 8];
 
     uint4 *A_vec = reinterpret_cast<uint4 *>(A_tile);
     uint4 *B_vec = reinterpret_cast<uint4 *>(B_tile);
@@ -94,35 +94,36 @@ __global__ void tensor_core_matmul_v2(half *A, half *B, float *C, int M, int N, 
 
     for (int k_step = 0; k_step < K; k_step += WMMA_K)
     {
-        // load A
         if (tid < 64)
         {
-            int row_tile = tid / 2;
-            int col_tile = (tid % 2) * 8;
+            int row_tile = tid / 2; // 0 to 31
+            int vec_idx = tid % 2;  // 0 or 1 (which uint4 in the row)
+            int col_tile = vec_idx * 8;
 
             const half *gmem_ptr = &A[((blockIdx.y * 32) + row_tile) * K + (k_step + col_tile)];
 
-            A_vec[tid] = *reinterpret_cast<const uint4 *>(gmem_ptr);
+            uint4 *row_ptr = reinterpret_cast<uint4 *>(&A_tile[row_tile][0]);
+            row_ptr[vec_idx] = *reinterpret_cast<const uint4 *>(gmem_ptr);
         }
         else
         {
-            int tid_b = tid - 64;
-
-            int row_tile = tid_b / 4;
-            int col_tile = (tid_b % 4) * 8;
+            int tid_b = tid - 64;     // 0 to 63
+            int row_tile = tid_b / 4; // 0 to 15
+            int vec_idx = tid_b % 4;  // 0, 1, 2, or 3
+            int col_tile = vec_idx * 8;
 
             const half *gmem_ptr = &B[(k_step + row_tile) * N + ((blockIdx.x * 32) + col_tile)];
 
-            B_vec[tid_b] = *reinterpret_cast<const uint4 *>(gmem_ptr);
+            uint4 *row_ptr = reinterpret_cast<uint4 *>(&B_tile[row_tile][0]);
+            row_ptr[vec_idx] = *reinterpret_cast<const uint4 *>(gmem_ptr);
         }
 
         __syncthreads();
 
         int a_tile_row = (warpId / 2) * WMMA_K;
-        wmma::load_matrix_sync(a_frag, &A_tile[a_tile_row][0], WMMA_K);
-
         int b_tile_col = (warpId % 2) * WMMA_K;
-        wmma::load_matrix_sync(b_frag, &B_tile[0][b_tile_col], 32);
+        wmma::load_matrix_sync(a_frag, &A_tile[a_tile_row][0], 16 + 8);
+        wmma::load_matrix_sync(b_frag, &B_tile[0][b_tile_col], 32 + 8);
 
         wmma::mma_sync(c_frag, a_frag, b_frag, c_frag);
         __syncthreads();
